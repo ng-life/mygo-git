@@ -1,0 +1,9 @@
+{
+  "name": "MyGo Git",
+  "slug": "mygo-git",
+  "identifier": "io.github.ng-life.mygo-git",
+  "version": "0.1.0",
+  "publisher": "ng-life",
+  "main": ".",
+  "out": "dist"
+}

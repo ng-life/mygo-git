@@ -1,0 +1,10 @@
+/bin/
+.DS_Store
+/dist/
+/design-qa.md
+/.idea/
+*.log
+.env
+.env.*
+__pycache__/
+*.pyc
