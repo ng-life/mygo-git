@@ -160,6 +160,8 @@ func TestScanSettingsUIReplacesToolbarScanning(t *testing.T) {
 func TestSaveAndScanFoldersKeepsExistingRepositories(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
+	t.Setenv("AppData", filepath.Join(home, "AppData"))
 	rel, err := filepath.Rel(home, configFile())
 	if err != nil || !filepath.IsLocal(rel) {
 		t.Fatalf("configuration not isolated: %s", configFile())
