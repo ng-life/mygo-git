@@ -194,7 +194,7 @@ func (a *client) applyChangelistDialog() {
 	}
 	if d.Kind == "move" {
 		if a.changelists.list(d.Target) == nil {
-			a.changelistDialog.Error = "请选择目标 Changelist"
+			a.changelistDialog.Error = "Select a target changelist"
 			return
 		}
 		a.moveToChangelist(d.Requests, d.Target)
@@ -223,12 +223,12 @@ func (a *client) applyChangelistDialog() {
 	} else {
 		name := strings.TrimSpace(d.Name)
 		if name == "" {
-			a.changelistDialog.Error = "名称不能为空"
+			a.changelistDialog.Error = "Name is required"
 			return
 		}
 		for _, list := range a.changelists.Lists {
 			if list.ID != d.ID && strings.EqualFold(list.Name, name) {
-				a.changelistDialog.Error = "Changelist 名称已存在"
+				a.changelistDialog.Error = "Changelist name already exists"
 				return
 			}
 		}
@@ -279,7 +279,7 @@ func loadChangelists(path string) (ChangelistState, error) {
 	seen := map[string]bool{}
 	for _, list := range s.Lists {
 		if list.ID == "" || strings.TrimSpace(list.Name) == "" || seen[list.ID] {
-			return ChangelistState{}, fmt.Errorf("Changelist 配置包含无效或重复列表")
+			return ChangelistState{}, fmt.Errorf("Changelist configuration contains invalid or duplicate lists")
 		}
 		seen[list.ID] = true
 	}
@@ -328,7 +328,7 @@ func (a *client) persistChangelists() {
 		a.changelistsSaveMu.Unlock()
 		return func() {
 			if err != nil {
-				a.changelistsError = "保存 Changelist 失败：" + err.Error()
+				a.changelistsError = "Failed to save changelists: " + err.Error()
 			} else {
 				a.changelistsError = ""
 			}

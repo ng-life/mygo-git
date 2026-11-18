@@ -120,7 +120,7 @@ func TestCodeCSharpOverloadsReturnMultipleSemanticTargets(t *testing.T) {
 	a := testClient(nil)
 	a.readRunner = func(work func() func()) { work()() }
 	a.navigateSymbol(CodeSource{Repository: t.TempDir(), Path: "Service.cs"}, document, ref)
-	if len(a.codeNavigation.Targets) != 2 || a.codeNavigation.Preview {
+	if len(a.codeNavigation.Targets) != 2 || !a.codeNavigation.Open {
 		t.Fatal("multiple targets must request choice")
 	}
 }
@@ -138,18 +138,18 @@ func TestCtrlClickDefinitionPreviewAndClose(t *testing.T) {
 			a.codeNavigationPanel(c)
 		})
 	}, 1300, 800)
-	label := "跳转 main.go:3:14 local"
+	label := "Go to main.go:3:14 local"
 	if err := tester.Click(label); err != nil {
 		t.Fatal(err)
 	}
 	if a.codeNavigation.Open {
 		t.Fatal("ordinary click triggered navigation")
 	}
-	if err := tester.ClickWith(ui.Ctrl, label); err != nil {
+	if err := tester.ClickWith(primaryShortcutModifier(), label); err != nil {
 		t.Fatal(err)
 	}
-	if !a.codeNavigation.Open || !a.codeNavigation.Preview || a.codeNavigation.Target.Definition.Line != 2 {
-		t.Fatalf("Ctrl+click failed: %+v", a.codeNavigation)
+	if a.codeNavigation.Open || a.activeEditor() == nil || a.activeEditor().Caret.Line != 2 {
+		t.Fatalf("Primary-modifier click failed: %+v", a.codeNavigation)
 	}
 	if output := os.Getenv("MYGO_CODE_JUMP_SCREENSHOT"); output != "" {
 		file, err := os.Create(output)
@@ -161,13 +161,10 @@ func TestCtrlClickDefinitionPreviewAndClose(t *testing.T) {
 		}
 		file.Close()
 	}
-	if err := tester.Click("关闭"); err != nil {
-		t.Fatal(err)
-	}
 	tester.Frame()
 	tester.Frame()
 	if a.codeNavigation.Open {
-		t.Fatal("preview did not close")
+		t.Fatal("unique target opened a navigation modal")
 	}
 }
 
@@ -209,20 +206,19 @@ func TestCodeMultipleTargetsChooserAndStaleResponse(t *testing.T) {
 	a.readRunner = func(work func() func()) { work()() }
 	a.navigateSymbol(source, document, codeReference(t, document, 6, "Run"))
 	tester := ui.NewTester(func(c *ui.Context) { a.codeNavigationPanel(c) }, 1300, 800)
-	if !tester.HasText("找到 2 个目标，请选择") {
+	if !tester.HasText("2 targets found. Select a target") {
 		t.Fatal(tester.Texts())
 	}
-	if err := tester.Click("Run · Service · Service.cs:3"); err != nil {
+	if err := tester.Click("Run · Service · Service.cs:3:14"); err != nil {
 		t.Fatal(err)
 	}
-	if !a.codeNavigation.Preview || a.codeNavigation.Target.Definition.Line != 3 {
+	if a.codeNavigation.Open || a.activeEditor() == nil || a.activeEditor().Caret.Line != 3 {
 		t.Fatal("target choice not applied")
 	}
-	if err := tester.Click("返回目标列表"); err != nil {
-		t.Fatal(err)
-	}
-	if !tester.HasText("找到 2 个目标，请选择") {
-		t.Fatal("could not return to targets")
+	a.navigateSymbol(source, document, codeReference(t, document, 6, "Run"))
+	tester.Frame()
+	if !tester.HasText("2 targets found. Select a target") {
+		t.Fatal("lookup did not reopen target chooser")
 	}
 	var queue []func() func()
 	a.readRunner = func(work func() func()) { queue = append(queue, work) }
@@ -245,7 +241,7 @@ func TestCompactWorkingTreeCheckboxUI(t *testing.T) {
 	if !slices.Contains(tester.Texts(), "src/main/java") || slices.Contains(tester.Texts(), "src") {
 		t.Fatal("compact directory label missing", tester.Texts())
 	}
-	if err := tester.Click("选择文件夹 app/src/main/java"); err != nil {
+	if err := tester.Click("Select directory app/src/main/java"); err != nil {
 		t.Fatal(err)
 	}
 	if a.workingCheckState(repo.Path, files) != ui.CheckOn {
@@ -268,5 +264,39 @@ func TestJavaScriptArrowFunctionLocalJump(t *testing.T) {
 	targets := document.Analysis.localTargets(ref)
 	if len(targets) != 1 || targets[0].Line != 1 {
 		t.Fatal(targets)
+	}
+}
+
+func TestDefinitionGesturePlatformModifiersAndHover(t *testing.T) {
+	for _, goos := range []string{"darwin", "windows", "linux"} {
+		primary := primaryShortcutModifierForOS(goos)
+		for _, mods := range []ui.Modifiers{0, ui.Ctrl, ui.Super, primary | ui.Shift, primary | ui.Alt} {
+			if got := definitionModifiers(mods, primary); got != (mods == primary) {
+				t.Fatalf("%s: unexpected gesture for modifiers %v", goos, mods)
+			}
+		}
+	}
+	document := codeDocument("main.go", "package main\nfunc target() {}\nfunc use() { target() }\n")
+	a := testClient(nil)
+	tester := ui.NewTester(func(c *ui.Context) {
+		ui.Column(c).Fill().Children(func() {
+			codeLineWithNavigation(c, document, 2, c.Theme().Text, &CodeNavigation{Client: a, Source: CodeSource{Path: "main.go"}})
+		})
+	}, 800, 200)
+	bounds, found := tester.Find("Go to main.go:3:14 target")
+	if !found {
+		t.Fatal("missing symbol")
+	}
+	tester.Move(bounds.X+bounds.W/2, bounds.Y+bounds.H/2)
+	tester.HoldModifiers(primaryShortcutModifier())
+	if tester.Cursor() != ui.CursorPointer {
+		t.Fatal("definition gesture must show a link cursor")
+	}
+	tester.HoldModifiers(0)
+	if tester.Cursor() == ui.CursorPointer {
+		t.Fatal("link cursor must clear when modifier is released")
+	}
+	if isDefinitionPress(ui.InputEvent{Kind: ui.InputPointerDown, Button: 1, Mods: primaryShortcutModifier()}) {
+		t.Fatal("secondary click must retain context menu behavior")
 	}
 }

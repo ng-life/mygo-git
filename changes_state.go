@@ -141,7 +141,7 @@ func (a *client) beginWorkingCommit(requests []CommitRequest, message string, pu
 	retryDialog := a.changesDialog
 	a.workingResults = nil
 	a.showOutput = true
-	a.jobProgress(fmt.Sprintf("Commit · %d 个仓库", len(requests)), func(report taskReporter) (func(), error) {
+	a.jobProgress(fmt.Sprintf("Commit · %d repositories", len(requests)), func(report taskReporter) (func(), error) {
 		results := executeWorkingCommits(requests, message, report)
 		committed := map[string]bool{}
 		pushes := map[string]PushTarget{}
@@ -149,27 +149,27 @@ func (a *client) beginWorkingCommit(requests []CommitRequest, message string, pu
 			pushes[target.Source.Repository.Path] = target
 		}
 		for i := range results {
-			report("核对 / Push · "+results[i].Repository.Name, len(requests)+i, len(requests)*3, nil)
+			report("Verify / Push · "+results[i].Repository.Name, len(requests)+i, len(requests)*3, nil)
 			result := &results[i]
 			if result.Err != nil {
-				report("核对 / Push · "+result.Repository.Name, len(requests)+i+1, len(requests)*3, result.Err)
+				report("Verify / Push · "+result.Repository.Name, len(requests)+i+1, len(requests)*3, result.Err)
 				continue
 			}
 			committed[result.Repository.Path] = true
 			if target, ok := pushes[result.Repository.Path]; ok {
 				hash := verifiedCommitHash(result.Output)
 				if hash == "" {
-					result.Err = fmt.Errorf("Commit 已成功，但无法定位核对后的 SHA，未执行 Push")
-					report("核对 / Push · "+result.Repository.Name, len(requests)+i+1, len(requests)*3, result.Err)
+					result.Err = fmt.Errorf("Commit succeeded, but the verified SHA is unavailable. Push was not started")
+					report("Verify / Push · "+result.Repository.Name, len(requests)+i+1, len(requests)*3, result.Err)
 					continue
 				}
 				out, err := pushOutgoing(target, hash)
 				result.Output += "\n" + out
 				if err != nil {
-					result.Err = fmt.Errorf("Commit 已成功；%w", err)
+					result.Err = fmt.Errorf("Commit succeeded; %w", err)
 				}
 			}
-			report("核对 / Push · "+result.Repository.Name, len(requests)+i+1, len(requests)*3, result.Err)
+			report("Verify / Push · "+result.Repository.Name, len(requests)+i+1, len(requests)*3, result.Err)
 		}
 		repos := inspectWithProgress(entriesFor(targets), report, len(requests)*2, len(requests)*3)
 		return func() {
@@ -236,11 +236,11 @@ func (a *client) applyChangesDialog() {
 				report("Push · "+target.Source.Repository.Name, i+1, len(dialog.PushTargets)*2, err)
 			}
 		case "squash":
-			report("合并提交 · "+dialog.Source.Repository.Name, 0, 2, nil)
+			report("Squash commits · "+dialog.Source.Repository.Name, 0, 2, nil)
 			out, err := squashOutgoing(dialog.Source, dialog.Commits, dialog.Message)
 			targets = []Repository{dialog.Source.Repository}
 			results = []OperationResult{{Repository: dialog.Source.Repository, Output: out, Err: err}}
-			report("合并提交 · "+dialog.Source.Repository.Name, 1, 2, err)
+			report("Squash commits · "+dialog.Source.Repository.Name, 1, 2, err)
 		}
 		repos := inspectWithProgress(entriesFor(targets), report, len(targets), len(targets)*2)
 		return func() { a.mergeRepositories(repos); a.output = formatResults(results); a.showOutput = true }, nil

@@ -17,6 +17,14 @@ import (
 )
 
 type client struct {
+	quitPending                                                                                                                    bool
+	changeViewMode                                                                                                                 string
+	changeViewTrees                                                                                                                []WorkingTree
+	changeViewLoading                                                                                                              bool
+	editorTabs                                                                                                                     []*editorTab
+	editorActive                                                                                                                   string
+	editorSequence                                                                                                                 uint64
+	applicationMenu                                                                                                                *mygo.Menu
 	tasks                                                                                                                          backgroundTasks
 	taskPanelOpen, shortcutHelpOpen                                                                                                bool
 	readTaskIDs                                                                                                                    map[string]uint64
@@ -139,6 +147,10 @@ func (a *client) jobProgress(label string, work func(taskReporter) (func(), erro
 			}
 			store.finish(taskID, err)
 			a.busy = false
+			if a.quitPending && a.win != nil {
+				mygo.App.Quit()
+				return
+			}
 			a.reloadHistory()
 			if a.review.Open {
 				if a.compare.Active {
@@ -163,56 +175,66 @@ func inspectAll(entries []Entry) []Repository {
 	return repos
 }
 func (a *client) refresh() {
+	if len(a.scanFolders) > 0 {
+		a.scanFoldersJob(a.scanFolders, false)
+		return
+	}
 	entries := append([]Entry(nil), a.entries...)
-	a.jobProgress("刷新仓库", func(report taskReporter) (func(), error) {
+	a.jobProgress("Refresh Repositories", func(report taskReporter) (func(), error) {
 		repos := inspectWithProgress(entries, report, 0, len(entries))
 		return func() {
 			a.repos = repos
 			a.refreshRepositoryFiles(repos)
 			a.reloadWorkingTrees()
-			a.output = fmt.Sprintf("已刷新 %d 个仓库", len(repos))
+			a.output = fmt.Sprintf("Refreshed %d repositories", len(repos))
 		}, nil
 	})
 }
 func (a *client) add(roots []string) { a.scanFoldersJob(roots, false) }
 func (a *client) scanFoldersJob(roots []string, save bool) {
+	a.scanFoldersJobOptions(roots, save, true)
+}
+func (a *client) scanFoldersJobOptions(roots []string, save, closeSettings bool) {
 	roots = append([]string(nil), roots...)
 	settingsPath := a.scanConfigPath()
 	existing := append([]Entry(nil), a.entries...)
-	a.jobProgress("扫描仓库", func(report taskReporter) (func(), error) {
-		report("扫描目录", 0, 0, nil)
+	a.jobProgress("Scan Repositories", func(report taskReporter) (func(), error) {
+		report("Scan Directories", 0, 0, nil)
 		if save {
 			if err := saveScanFolders(settingsPath, roots); err != nil {
-				return nil, err
+				return func() {
+					if save {
+						a.settings.Error = err.Error()
+					}
+				}, err
 			}
 		}
 		found, scanErr := discover(roots)
-		seen := map[string]bool{}
-		for _, e := range existing {
-			seen[e.Path] = true
+		entries, added, removed := reconcileScanEntries(existing, found, roots, scanErr != nil)
+		if err := saveEntries(entries); err != nil {
+			return func() {
+				if save {
+					a.settings.Error = err.Error()
+				}
+			}, err
 		}
-		added := 0
-		for _, e := range found {
-			if !seen[e.Path] {
-				existing = append(existing, e)
-				seen[e.Path] = true
-				added++
-			}
-		}
-		if err := saveEntries(existing); err != nil {
-			return nil, err
-		}
-		repos := inspectWithProgress(existing, report, 0, len(existing))
+		repos := inspectWithProgress(entries, report, 0, len(entries))
 		return func() {
 			if save {
 				a.scanFolders = roots
-				a.settings.Open = false
+				a.settings.Open = !closeSettings
+				a.settings.Error = ""
+				if scanErr != nil {
+					a.settings.Error = scanErr.Error()
+					a.settings.Open = true
+				}
 			}
-			a.entries = existing
+			a.pruneRemovedRepositories(repos)
+			a.entries = entries
 			a.repos = repos
 			a.refreshRepositoryFiles(repos)
 			a.reloadWorkingTrees()
-			a.output = fmt.Sprintf("扫描完成，新增 %d 个仓库", added)
+			a.output = fmt.Sprintf("Scan complete: %d added, %d removed, %d repositories", added, removed, len(entries))
 		}, scanErr
 	})
 }
@@ -264,10 +286,10 @@ func (a *client) runBranchAction(action, branch string, remote bool, targets []R
 		return
 	}
 	entries := entriesFor(targets)
-	label := fmt.Sprintf("%s %s · %d 个仓库", action, branch, len(targets))
+	label := fmt.Sprintf("%s %s · %d repositories", action, branch, len(targets))
 	a.jobProgress(label, func(report taskReporter) (func(), error) {
 		var results []OperationResult
-		if action == "Fetch" || action == "Pull" || action == "刷新状态" {
+		if action == "Fetch" || action == "Pull" || action == "Refresh Status" {
 			for i, r := range targets {
 				report(action+" · "+r.Name, i, len(targets)*2, nil)
 				out, err := runRepositoryOperation(r.Path, action)
@@ -306,30 +328,41 @@ func main() {
 
 	mygo.Theme.SetSource(mygo.ThemeDark)
 	entries, err := loadEntries()
-	a := &client{entries: entries, selected: map[string]bool{}, expanded: map[string]*bool{}, logIndex: -1, fileIndex: -1, workspaceSplit: 55, commitAnchor: -1, output: "从仓库列表管理单个仓库，或右键本地、远程分支批量操作。"}
+	a := &client{entries: entries, selected: map[string]bool{}, expanded: map[string]*bool{}, logIndex: -1, fileIndex: -1, workspaceSplit: 55, commitAnchor: -1, output: "Manage individual repositories in Repositories, or right-click local and remote branches for batch operations."}
 	if err != nil {
-		a.output = "配置读取失败：" + err.Error()
+		a.output = "Failed to load configuration: " + err.Error()
 	}
 	lists, listErr := loadChangelists(a.changelistConfigPath())
 	a.changelists = lists
 	a.ensureChangelists()
 	a.commitMessage = a.changelists.list(a.changelists.Selected).Message
 	if listErr != nil {
-		a.changelistsLoadError = "Changelist 配置读取失败：" + listErr.Error()
+		a.changelistsLoadError = "Failed to load changelist configuration: " + listErr.Error()
 		a.output += "\n" + a.changelistsLoadError
 	}
 	marks, markErr := loadReviewMarks(a.reviewMarksPath())
 	a.reviewMarks = marks
 	if markErr != nil {
-		a.output += "\n审查进度读取失败：" + markErr.Error()
+		a.output += "\nFailed to load review progress: " + markErr.Error()
 	}
 	folders, folderErr := loadScanFolders(a.scanConfigPath())
 	a.scanFolders = folders
 	if folderErr != nil {
-		a.output += "\n扫描设置读取失败：" + folderErr.Error()
+		a.output += "\nFailed to load scan settings: " + folderErr.Error()
 	}
+	mygo.App.OnBeforeQuit(func(e *mygo.QuitEvent) {
+		if !a.canQuitSafely() {
+			e.PreventDefault()
+		}
+	})
 	mygo.App.WhenReady(func() {
-		a.win = mygo.NewWindow(mygo.WindowOptions{Title: "MyGo Git · 多仓库管理", Width: 1560, Height: 940, Content: ui.View(a.view)})
+		a.installApplicationMenu()
+		a.win = mygo.NewWindow(mygo.WindowOptions{Title: "MyGo Git · Multi-Repository Management", Width: 1560, Height: 940, Content: ui.View(a.view)})
+		a.win.OnClose(func(e *mygo.CloseEvent) {
+			if !a.canQuitSafely() {
+				e.PreventDefault()
+			}
+		})
 		a.win.OnClosed(func() {
 			for lane := range a.readCancels {
 				a.cancelRead(lane)
@@ -341,11 +374,7 @@ func main() {
 			a.workingGeneration++
 			a.workingFileGeneration++
 		})
-		if len(a.scanFolders) > 0 {
-			a.add(a.scanFolders)
-		} else if len(entries) > 0 {
-			a.refresh()
-		}
+		a.add(a.scanFolders)
 	})
 	if err := mygo.App.Run(); err != nil {
 		log.Fatal(err)
@@ -357,7 +386,7 @@ func main() {
 		err := saveChangelists(a.changelistConfigPath(), a.changelists)
 		a.changelistsSaveMu.Unlock()
 		if err != nil {
-			log.Printf("保存 Changelist 失败：%v", err)
+			log.Printf("Failed to save changelists: %v", err)
 		}
 	}
 	// The UI loop has stopped; flush the latest progress before process exit.
@@ -367,7 +396,7 @@ func main() {
 		err := saveReviewMarks(a.reviewMarksPath(), a.reviewMarks)
 		a.reviewSaveMu.Unlock()
 		if err != nil {
-			log.Printf("保存审查进度失败：%v", err)
+			log.Printf("Failed to save review progress: %v", err)
 		}
 	}
 }

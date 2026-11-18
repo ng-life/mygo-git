@@ -36,16 +36,16 @@ func TestRepositoryBrowserCompactFilesAndCurrentContents(t *testing.T) {
 	a := testClient([]Repository{inspect(Entry{Path: repo, Name: "app"})})
 	a.readRunner = func(work func() func()) { work()() }
 	tester := ui.NewTester(a.view, 1560, 940)
-	if tester.HasText("全部仓库") {
+	if tester.HasText("AllRepository") {
 		t.Fatal("all repositories button remains")
 	}
-	if err := tester.Click("展开仓库 app"); err != nil {
+	if err := tester.Click("Expand repository app"); err != nil {
 		t.Fatal(err)
 	}
 	if a.repositoryPath != "" || !a.repositoryFiles[repo].Loaded {
 		t.Fatal("disclosure must load files without changing Log scope")
 	}
-	if err := tester.Click("展开仓库 app"); err != nil {
+	if err := tester.Click("Expand repository app"); err != nil {
 		t.Fatal(err)
 	}
 	if err := tester.Click("app"); err != nil {
@@ -59,15 +59,15 @@ func TestRepositoryBrowserCompactFilesAndCurrentContents(t *testing.T) {
 		t.Fatal("compact folder missing", tester.Texts())
 	}
 	doubleTreeContent(t, tester, "src/main/go")
-	if err := tester.Click("工作区文件 app/src/main/go/app.go"); err != nil {
+	if err := tester.Click("Working tree file app/src/main/go/app.go"); err != nil {
 		t.Fatal(err)
 	}
-	if a.workingComparison.After != "package app\nconst Value = 2\n" || !tester.HasText("当前工作区") || !tester.HasText("const Value = 2") {
+	if a.workingComparison.After != "package app\nconst Value = 2\n" || !tester.HasText("Current Worktree") || !tester.HasText("const Value = 2") {
 		t.Fatal("browser did not show current worktree contents", tester.Texts())
 	}
 	tester.Advance(time.Second)
-	toolbar, _ := tester.Find("刷新全部")
-	header, _ := tester.Find("仓库列表")
+	toolbar, _ := tester.Find("MyGo Git")
+	header, _ := tester.Find("Repositories")
 	if toolbar.Y+toolbar.H > 34.5 || header.Y < 34 {
 		t.Fatalf("toolbar overlap: toolbar=%+v header=%+v", toolbar, header)
 	}
@@ -103,7 +103,7 @@ func TestUnifiedLogsSearchPreservesScopeAndAncestors(t *testing.T) {
 		{Path: "/workspace/stock", Name: "Stock", Branches: []string{"main"}, RemoteBranches: []string{"origin/main"}},
 	})
 	tester := ui.NewTester(a.view, 1560, 940)
-	if err := tester.Click("搜索仓库"); err != nil {
+	if err := tester.Click("Search Repositories"); err != nil {
 		t.Fatal(err)
 	}
 	tester.Type("ORDERS")
@@ -113,7 +113,7 @@ func TestUnifiedLogsSearchPreservesScopeAndAncestors(t *testing.T) {
 	if err := tester.Click("Logs"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tester.Click("搜索分支或 Tag"); err != nil {
+	if err := tester.Click("Search Branches or Tags"); err != nil {
 		t.Fatal(err)
 	}
 	tester.Type("EXPORT")
@@ -123,7 +123,7 @@ func TestUnifiedLogsSearchPreservesScopeAndAncestors(t *testing.T) {
 	if err := tester.RightClick("export  (1)"); err != nil {
 		t.Fatal(err)
 	}
-	if !slices.Contains(tester.Menu(), "feature/order/export · 全部 1 个仓库") {
+	if !slices.Contains(tester.Menu(), "feature/order/export · All 1 repositories") {
 		t.Fatal(tester.Menu())
 	}
 	tester.CloseMenu()
@@ -168,9 +168,9 @@ func TestLocalWorkingTreeIndentation(t *testing.T) {
 	a := workingClient(t)
 	a.switchTab(1)
 	tester := ui.NewTester(a.view, 1560, 940)
-	heading, _ := tester.Find("Changelists")
-	repository, _ := tester.Find("展开或折叠 supplychain")
-	file, _ := tester.Find("选择文件 supplychain/order.txt")
+	heading, _ := tester.Find("Changelists Heading")
+	repository, _ := tester.Find("Expand or collapse supplychain")
+	file, _ := tester.Find("Select file supplychain/order.txt")
 	if repository.X <= heading.X || file.X <= repository.X {
 		t.Fatalf("indentation missing: heading=%+v repository=%+v file=%+v", heading, repository, file)
 	}

@@ -122,9 +122,9 @@ func (a *client) commitMessageHistoryPanel(c *ui.Context) {
 	ui.Modal(c.Key("commit-message-history"), &a.messageHistory.Open, func() {
 		ui.Column(c).Width(660).MaxHeight(540).Gap(8).Children(func() {
 			ui.Text(c, "Commit Message History").FontSize(16).Bold()
-			ui.TextInput(c.Key("message-search"), &a.messageHistory.Query).Label("搜索 Commit Message").Placeholder("搜索提交说明")
+			ui.TextInput(c.Key("message-search"), &a.messageHistory.Query).Label("Search Commit Messages").Placeholder("Search Commit Messages")
 			if a.messageHistory.Loading {
-				ui.Text(c, "正在读取最近提交…").FontSize(11)
+				ui.Text(c, "Loading recent commits…").FontSize(11)
 			}
 			if a.messageHistory.Error != "" {
 				ui.Text(c, a.messageHistory.Error).FontSize(11).TextColor(statusOrange)
@@ -137,13 +137,13 @@ func (a *client) commitMessageHistoryPanel(c *ui.Context) {
 					}
 					found++
 					title, _, _ := strings.Cut(message, "\n")
-					ui.ButtonBase(c.Key(i)).FillWidth().MinHeight(30).Padding(5, 8).Justify(ui.Start).Label(fmt.Sprintf("引用 Commit Message %d", i)).Tooltip(message).OnClick(func() { a.useCommitMessage(message) }).Children(func() { ui.Text(c, title).FontSize(12).SingleLine().Ellipsis("…").MinWidth(0) })
+					ui.ButtonBase(c.Key(i)).FillWidth().MinHeight(30).Padding(5, 8).Justify(ui.Start).Label(fmt.Sprintf("Use Commit Message %d", i)).Tooltip(message).OnClick(func() { a.useCommitMessage(message) }).Children(func() { ui.Text(c, title).FontSize(12).SingleLine().Ellipsis("…").MinWidth(0) })
 				}
 				if found == 0 && !a.messageHistory.Loading {
-					ui.Text(c, "暂无匹配的 Commit Message").FontSize(12).TextColor(c.Theme().TextMuted)
+					ui.Text(c, "No matching commit messages").FontSize(12).TextColor(c.Theme().TextMuted)
 				}
 			})
-			ui.Button(c, "关闭").OnClick(func() { a.messageHistory.Open = false; a.cancelRead("commit-message-history") })
+			ui.Button(c, "Close").OnClick(func() { a.messageHistory.Open = false; a.cancelRead("commit-message-history") })
 		})
 	})
 }

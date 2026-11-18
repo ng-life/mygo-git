@@ -24,32 +24,32 @@ func (a *client) openTagDialog(action, name string, targets []Repository) {
 	a.tagDialog = tagDialogState{Open: true, Action: action, Name: name, Ref: "HEAD", Remote: "origin", Targets: append([]Repository(nil), targets...), Selected: selected}
 }
 func (a *client) tagMenu(menu *ui.Menu, name string, targets []Repository) {
-	menu.Item(fmt.Sprintf("Tag %s · 全部 %d 个仓库", name, len(targets))).Disabled(true)
-	if menu.Item("Review… · 比较 Tag").Disabled(len(targets) == 0).Chosen() {
+	menu.Item(fmt.Sprintf("Tag %s · All %d repositories", name, len(targets))).Disabled(true)
+	if menu.Item("Review… · Compare Tag").Disabled(len(targets) == 0).Chosen() {
 		a.openReviewDialog(targets, "refs/tags/"+name)
 	}
-	if menu.Item("Log · 查看 Tag 历史").Chosen() {
+	if menu.Item("Log · Tag History").Chosen() {
 		a.selectReference("/"+name, name, "tags")
 	}
-	if menu.Item("checkout · 切换到 Tag（detached HEAD）").Disabled(a.busy).Chosen() {
+	if menu.Item("Checkout Tag (detached HEAD)").Disabled(a.busy).Chosen() {
 		a.openTagDialog("checkout", name, targets)
 	}
-	if menu.Item("推送 Tag…").Disabled(a.busy).Chosen() {
+	if menu.Item("Push Tag…").Disabled(a.busy).Chosen() {
 		a.openTagDialog("push", name, targets)
 	}
 	menu.Separator()
-	if menu.Item("新建 Tag…").Disabled(a.busy).Chosen() {
+	if menu.Item("New Tag…").Disabled(a.busy).Chosen() {
 		a.openTagDialog("create", "", targets)
 		a.tagDialog.Ref = "refs/tags/" + name
 	}
-	if menu.Item("删除本地 Tag…").Disabled(a.busy).Chosen() {
+	if menu.Item("Delete Local Tag…").Disabled(a.busy).Chosen() {
 		a.openTagDialog("delete", name, targets)
 	}
 }
 func executeTagOperation(repo Repository, request tagDialogState) (string, error) {
 	ref := "refs/tags/" + request.Name
 	if _, err := git(repo.Path, "check-ref-format", ref); err != nil {
-		return "", fmt.Errorf("无效 Tag 名称：%s", request.Name)
+		return "", fmt.Errorf("Invalid tag name: %s", request.Name)
 	}
 	if request.Action == "create" {
 		target, err := resolveReviewRef(context.Background(), repo, request.Ref)
@@ -58,7 +58,7 @@ func executeTagOperation(repo Repository, request tagDialogState) (string, error
 		}
 		if request.Annotated {
 			if strings.TrimSpace(request.Message) == "" {
-				return "", fmt.Errorf("附注 Tag 的 message 不能为空")
+				return "", fmt.Errorf("Annotated tag message is required")
 			}
 			return git(repo.Path, "tag", "-a", "-m", request.Message, "--", request.Name, target)
 		}
@@ -67,25 +67,25 @@ func executeTagOperation(repo Repository, request tagDialogState) (string, error
 	}
 	expected := repo.TagObjects[request.Name]
 	if expected == "" {
-		return "", fmt.Errorf("缺少 Tag 快照，请刷新后重试")
+		return "", fmt.Errorf("Tag snapshot unavailable. Refresh and retry")
 	}
 	current, err := git(repo.Path, "show-ref", "--verify", "--hash", ref)
 	if err != nil || current != expected {
-		return "", fmt.Errorf("Tag 已变化或不存在，请刷新后重试")
+		return "", fmt.Errorf("Tag changed or no longer exists. Refresh and retry")
 	}
 	switch request.Action {
 	case "delete":
 		return git(repo.Path, "update-ref", "--no-deref", "-d", ref, expected)
 	case "checkout":
 		if operationInProgress(repo.Path) {
-			return "", fmt.Errorf("存在未完成的 Git 操作")
+			return "", fmt.Errorf("Git operation in progress")
 		}
 		status, err := git(repo.Path, "status", "--porcelain")
 		if err != nil {
 			return "", err
 		}
 		if status != "" {
-			return "", fmt.Errorf("工作区不干净，已跳过")
+			return "", fmt.Errorf("Skipped: working tree is not clean")
 		}
 		target, err := resolveReviewRef(context.Background(), repo, expected)
 		if err != nil {
@@ -104,12 +104,12 @@ func executeTagOperation(repo Repository, request tagDialogState) (string, error
 			}
 		}
 		if !found {
-			return "", fmt.Errorf("远程名称不存在：%s", request.Remote)
+			return "", fmt.Errorf("Remote does not exist: %s", request.Remote)
 		}
 		// Pin the source object; never overwrite a different remote tag.
 		return git(repo.Path, "push", "--porcelain", request.Remote, expected+":"+ref)
 	}
-	return "", fmt.Errorf("不支持的 Tag 操作：%s", request.Action)
+	return "", fmt.Errorf("Unsupported tag operation: %s", request.Action)
 }
 func (a *client) applyTagOperation() {
 	request := a.tagDialog
@@ -149,12 +149,12 @@ func (a *client) tagManagementPanel(c *ui.Context) {
 	}
 	ui.Modal(c.Key("tag-management"), &a.tagDialog.Open, func() {
 		ui.Column(c).Width(660).MaxHeight(620).Gap(10).Children(func() {
-			title := map[string]string{"create": "新建 Tag", "delete": "删除本地 Tag", "push": "推送 Tag", "checkout": "切换到 Tag"}[a.tagDialog.Action]
+			title := map[string]string{"create": "New Tag", "delete": "Delete Local Tag", "push": "Push Tag", "checkout": "Checkout Tag"}[a.tagDialog.Action]
 			ui.Text(c, title).FontSize(18).Bold()
 			if a.tagDialog.Action == "create" {
-				ui.TextInput(c.Key("tag-name"), &a.tagDialog.Name).Label("Tag 名称").Placeholder("例如 release/v1.0.0")
-				ui.TextInput(c.Key("tag-ref"), &a.tagDialog.Ref).Label("Tag 目标引用").Placeholder("HEAD / 分支 / Commit SHA")
-				ui.Checkbox(c, &a.tagDialog.Annotated, "附注 Tag")
+				ui.TextInput(c.Key("tag-name"), &a.tagDialog.Name).Label("Tag name").Placeholder("e.g. release/v1.0.0")
+				ui.TextInput(c.Key("tag-ref"), &a.tagDialog.Ref).Label("Tag target ref").Placeholder("HEAD / Branch / Commit SHA")
+				ui.Checkbox(c, &a.tagDialog.Annotated, "Annotated Tag")
 				if a.tagDialog.Annotated {
 					ui.TextArea(c, &a.tagDialog.Message).Label("Tag message").Placeholder("Tag message").Height(70)
 				}
@@ -162,16 +162,16 @@ func (a *client) tagManagementPanel(c *ui.Context) {
 				ui.Text(c, a.tagDialog.Name).Font("monospace").Selectable()
 			}
 			if a.tagDialog.Action == "push" {
-				ui.TextInput(c, &a.tagDialog.Remote).Label("Tag 远程名称").Placeholder("远程名称，例如 origin")
-				ui.Text(c, "推送所选本地 Tag，不覆盖已有的不同远程 Tag。").FontSize(12)
+				ui.TextInput(c, &a.tagDialog.Remote).Label("Tag remote name").Placeholder("Remote name, e.g. origin")
+				ui.Text(c, "Push selected local tags. Existing remote tags with different targets are not overwritten.").FontSize(12)
 			}
 			if a.tagDialog.Action == "delete" {
-				ui.Text(c, "仅删除所选仓库中的本地 Tag，保留远程 Tag；引用已变化时拒绝删除。").FontSize(12)
+				ui.Text(c, "Delete local tags in selected repositories. Remote tags are preserved. Deletion is rejected if a ref has changed.").FontSize(12)
 			}
 			if a.tagDialog.Action == "checkout" {
-				ui.Text(c, "将进入 detached HEAD；工作区有变更或存在未完成操作时跳过。").FontSize(12)
+				ui.Text(c, "Check out in detached HEAD mode. Skip repositories with working tree changes or an in-progress operation.").FontSize(12)
 			}
-			ui.Text(c, "影响仓库（可勾选）：").FontSize(12)
+			ui.Text(c, "Repositories (select to include):").FontSize(12)
 			selected := 0
 			ui.Scroll(c).MaxHeight(230).Children(func() {
 				for _, repo := range a.tagDialog.Targets {
@@ -179,13 +179,13 @@ func (a *client) tagManagementPanel(c *ui.Context) {
 					if on {
 						selected++
 					}
-					ui.Checkbox(c.Key(repo.Path), &on, repo.Name).Label("Tag 仓库 " + repo.Name).Tooltip(repo.Path).OnClick(func() { a.tagDialog.Selected[repo.Path] = on })
+					ui.Checkbox(c.Key(repo.Path), &on, repo.Name).Label("Tag repository " + repo.Name).Tooltip(repo.Path).OnClick(func() { a.tagDialog.Selected[repo.Path] = on })
 				}
 			})
 			disabled := a.busy || selected == 0 || strings.TrimSpace(a.tagDialog.Name) == "" || (a.tagDialog.Action == "create" && (strings.TrimSpace(a.tagDialog.Ref) == "" || (a.tagDialog.Annotated && strings.TrimSpace(a.tagDialog.Message) == "")))
 			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
-				ui.Button(c, "取消").OnClick(func() { a.tagDialog.Open = false })
-				ui.PrimaryButton(c, "确认"+title).Disabled(disabled).OnClick(a.applyTagOperation)
+				ui.Button(c, "Cancel").OnClick(func() { a.tagDialog.Open = false })
+				ui.PrimaryButton(c, "Confirm "+title).Disabled(disabled).OnClick(a.applyTagOperation)
 			})
 		})
 	})
@@ -193,7 +193,7 @@ func (a *client) tagManagementPanel(c *ui.Context) {
 
 func (a *client) fetchTags(targets []Repository) {
 	targets = append([]Repository(nil), targets...)
-	a.jobProgress("获取 Tags", func(report taskReporter) (func(), error) {
+	a.jobProgress("Fetch Tags", func(report taskReporter) (func(), error) {
 		var results []OperationResult
 		for i, repo := range targets {
 			report("Tag · "+repo.Name, i, len(targets)*2, nil)

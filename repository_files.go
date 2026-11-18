@@ -44,7 +44,7 @@ func readRepositoryFiles(ctx context.Context, repo Repository) repositoryFileSta
 		seen[file] = true
 		if _, err := os.Lstat(filepath.Join(repo.Path, filepath.FromSlash(file))); err != nil {
 			if !os.IsNotExist(err) {
-				state.Error = "部分文件无法读取：" + err.Error()
+				state.Error = "Some files could not be read: " + err.Error()
 			}
 			continue
 		}
@@ -111,10 +111,10 @@ func (a *client) repositoryFileNodes(c *ui.Context, repo Repository, state repos
 	for _, node := range nodes {
 		if node.File == nil {
 			open := a.browserOpen("repository-folder:" + repo.Path + "\x00" + node.Path)
-			treeContentAction(ui.TreeItem(c.Key(node.Path), node.Name, open, func() { a.repositoryFileNodes(c, repo, state, node.Children) }).Label(node.Name).Tooltip(node.Path), nil, func() { *open = !*open })
+			treeContentAction(folderTreeItem(c.Key(node.Path), node.Name, open, func() { a.repositoryFileNodes(c, repo, state, node.Children) }).Label(node.Name).Tooltip(node.Path), nil, func() { *open = !*open })
 		} else {
 			file := *node.File
-			ui.TreeItem(c.Key(node.Path), node.Name, nil, nil).Label("工作区文件 " + repo.Name + "/" + file.Path).Tooltip(file.Path).Selected(a.workingFileKey == workingFileKey(repo.Path, file.Path)).OnClick(func() {
+			fileTreeItem(c.Key(node.Path), node.Name, file.Path).Label("Working tree file " + repo.Name + "/" + file.Path).Tooltip(file.Path).Selected(a.workingFileKey == workingFileKey(repo.Path, file.Path)).OnClick(func() {
 				if a.repositoryPath != repo.Path {
 					a.selectRepository(repo)
 				}
@@ -123,27 +123,12 @@ func (a *client) repositoryFileNodes(c *ui.Context, repo Repository, state repos
 		}
 	}
 }
-func (a *client) repositoryFilePanel(c *ui.Context) {
-	ui.Column(c.Key("repository-file:" + a.workingFileKey)).Fill().Padding(10).Gap(8).Children(func() {
-		ui.Text(c, a.workingFileTree.Repository.Name+" · "+a.workingFile.Path).Bold().SingleLine().Tooltip(a.workingFile.Path)
-		a.reviewFileNavigation(c)
-		if a.workingComparisonLoading {
-			ui.Text(c, "正在读取工作区文件…")
-			return
-		}
-		if a.workingComparisonError != "" {
-			ui.Text(c, a.workingComparisonError)
-			return
-		}
-		if a.workingComparison.Notice != "" {
-			ui.Text(c, a.workingComparison.Notice)
-			return
-		}
-		comparisonPane(c, "当前工作区 · "+a.workingFileTree.Repository.Branch, a.workingComparison.AfterDocument, nil, false, CodeNavigation{Client: a, Source: a.workingComparison.AfterSource})
-	})
-}
 func (a *client) workingReviewTrees() []WorkingTree {
-	if a.tab == 0 {
+	current := a.activeEditor()
+	if current != nil && current.Kind == "changes" && len(current.Sources) > 0 {
+		return current.Sources
+	}
+	if (current != nil && current.Kind == "file") || (current == nil && a.tab == 0) {
 		if state, ok := a.repositoryFiles[a.workingFileTree.Repository.Path]; ok && state.Loaded {
 			return []WorkingTree{state.Tree}
 		}
@@ -180,13 +165,13 @@ func filteredBranchRepositories(repos []Repository, query string, remote bool) [
 // Keep messages separate from the tree so unloaded and empty repositories are distinguishable.
 func repositoryFileMessage(state repositoryFileState) string {
 	if state.Loading {
-		return "正在读取文件…"
+		return "Loading files…"
 	}
 	if state.Error != "" {
 		return state.Error
 	}
 	if state.Loaded && (state.Root == nil || len(state.Root.Children) == 0) {
-		return "暂无工作区文件"
+		return "No working tree files"
 	}
 	return ""
 }

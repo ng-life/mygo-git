@@ -77,7 +77,7 @@ func readCompare(ctx context.Context, request ReviewRequest, limit int) CompareR
 			equivalent := map[string]bool{}
 			cherry, e := gitContext(ctx, repo.Path, "cherry", other, tip)
 			if e != nil {
-				problems = append(problems, repo.Name+" 补丁等价检查："+e.Error())
+				problems = append(problems, repo.Name+" patch-equivalence check: "+e.Error())
 			}
 			for _, line := range strings.Split(cherry, "\n") {
 				fields := strings.Fields(line)
@@ -163,6 +163,7 @@ func (a *client) reloadCompare() {
 			}
 			a.compare.Result = result
 			a.compare.Loading = false
+			a.saveEditorContext()
 		}
 	})
 }
@@ -237,7 +238,13 @@ func (a *client) selectCompareCommit(index int, mods int) {
 		if anchor < 0 || anchor >= len(rows) {
 			anchor = index
 		}
+		if a.compare.Mode == "sides" && rows[anchor].Side != rows[index].Side {
+			anchor = index
+		}
 		for i := min(anchor, index); i <= max(anchor, index); i++ {
+			if a.compare.Mode == "sides" && rows[i].Side != rows[index].Side {
+				continue
+			}
 			a.compare.Selected[rows[i].Commit.Key()] = true
 		}
 	} else {

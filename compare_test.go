@@ -68,10 +68,10 @@ func TestCompareViewCommitReviewAndSwapUI(t *testing.T) {
 	a := divergentCompareClient(t)
 	a.beginReview(ReviewRequest{Kind: "direct", Base: "refs/heads/side-a", Target: "refs/heads/side-b", Repositories: a.repos, Net: true})
 	tester := ui.NewTester(a.view, 1560, 940)
-	if !tester.HasText("Compare") || !tester.HasText("文件差异") {
+	if !tester.HasText("Compare") || !tester.HasText("File Diff") {
 		t.Fatal("Compare missing")
 	}
-	if err := tester.Click("双方独有"); err != nil {
+	if err := tester.Click("Unique to Each"); err != nil {
 		t.Fatal(err)
 	}
 	rows := a.compareCommits()
@@ -85,7 +85,7 @@ func TestCompareViewCommitReviewAndSwapUI(t *testing.T) {
 		t.Fatalf("commit files not loaded %+v", a.review)
 	}
 	item := a.review.Items[0]
-	if err := tester.Click("Review 文件 " + item.File.Path); err != nil {
+	if err := tester.Click("Review file " + item.File.Path); err != nil {
 		t.Fatal(err)
 	}
 	if a.selectedFile == "" || len(a.comparisons) != 1 {
@@ -102,13 +102,13 @@ func TestCompareViewCommitReviewAndSwapUI(t *testing.T) {
 		}
 		f.Close()
 	}
-	if err := tester.Click("交换比较版本"); err != nil {
+	if err := tester.Click("Swap Revisions"); err != nil {
 		t.Fatal(err)
 	}
 	if a.compare.Request.Base != "refs/heads/side-b" || a.compare.Request.Target != "refs/heads/side-a" || a.compare.Mode != "files" {
 		t.Fatal(a.compare.Request)
 	}
-	if err := tester.Click("共同祖先"); err != nil {
+	if err := tester.Click("Merge Base"); err != nil {
 		t.Fatal(err)
 	}
 	if !tester.HasText("Merge base: " + a.compare.Result.Endpoints[0].Bases[0]) {

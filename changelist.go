@@ -49,7 +49,7 @@ func changelistFiles(ctx context.Context, path, head string, files []WorkingFile
 			if exists == nil {
 				after, hashErr := gitContext(ctx, path, "hash-object", "--path="+file.Path, "--", file.Path)
 				if hashErr != nil {
-					return nil, fmt.Errorf("读取文件 %s：%w", file.Path, hashErr)
+					return nil, fmt.Errorf("Read file %s: %w", file.Path, hashErr)
 				}
 				if before == after {
 					continue

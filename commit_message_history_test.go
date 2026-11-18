@@ -22,7 +22,7 @@ func TestCommitMessageHistoryAndAmendButtonsUI(t *testing.T) {
 	if tab.W > 24 {
 		t.Fatalf("tab strip too wide: %+v", tab)
 	}
-	if tester.HasText("Commit 已选仓库") || tester.HasText("多个仓库共用") {
+	if tester.HasText("Commit Selected Repositories") || tester.HasText("Shared across repositories") {
 		t.Fatal("verbose commit labels remain")
 	}
 	if err := tester.Click("Commit Message History"); err != nil {
@@ -37,11 +37,11 @@ func TestCommitMessageHistoryAndAmendButtonsUI(t *testing.T) {
 	if index < 0 {
 		t.Fatalf("recent message missing: %+v", a.messageHistory)
 	}
-	if err := tester.Click("搜索 Commit Message"); err != nil {
+	if err := tester.Click("Search Commit Messages"); err != nil {
 		t.Fatal(err)
 	}
 	tester.Type("SCM-N12345")
-	if err := tester.Click("引用 Commit Message " + strconv.Itoa(index)); err != nil {
+	if err := tester.Click("Use Commit Message " + strconv.Itoa(index)); err != nil {
 		t.Fatal(err)
 	}
 	if a.commitMessage != message || a.messageHistory.Open {
@@ -51,7 +51,7 @@ func TestCommitMessageHistoryAndAmendButtonsUI(t *testing.T) {
 	if !a.messageHistory.Open {
 		t.Fatal("history shortcut failed")
 	}
-	if err := tester.Click("关闭"); err != nil {
+	if err := tester.Click("Close"); err != nil {
 		t.Fatal(err)
 	}
 	if err := tester.Click("Amend"); err != nil {

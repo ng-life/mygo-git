@@ -10,12 +10,12 @@ import (
 func (a *client) outgoingPanel(c *ui.Context) {
 	ui.Column(c).Fill().Padding(10).Gap(6).Children(func() {
 		ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, "未 Push 提交").FontSize(14).Bold()
+			ui.Text(c, "Unpushed Commits").FontSize(14).Bold()
 			ui.Spacer(c)
-			ui.Button(c, "Push 全部…").Disabled(a.busy || a.workingLoading).OnClick(func() { a.openChangesPush(a.outgoing) })
+			ui.Button(c, "Push All…").Disabled(a.busy || a.workingLoading).OnClick(func() { a.openChangesPush(a.outgoing) })
 		})
 		if a.workingLoading {
-			ui.Text(c, "正在刷新未 Push 提交…").FontSize(11)
+			ui.Text(c, "Refreshing unpushed commits…").FontSize(11)
 		}
 		ui.Scroll(c).Grow(1).Children(func() {
 			count := 0
@@ -30,14 +30,14 @@ func (a *client) outgoingPanel(c *ui.Context) {
 				ui.Column(c.Key(source.Repository.Path)).Children(func() {
 					selected := a.selectedOutgoing(source)
 					ui.Row(c).Gap(4).Height(26).AlignItems(ui.Center).Children(func() {
-						a.workingDisclosure(c, "outgoing:"+source.Repository.Path, source.Repository.Name+" 未 Push")
+						a.workingDisclosure(c, "outgoing:"+source.Repository.Path, source.Repository.Name+" unpushed")
 						state := ui.CheckOff
 						if len(selected) == len(source.Commits) {
 							state = ui.CheckOn
 						} else if len(selected) > 0 {
 							state = ui.CheckMixed
 						}
-						ui.CheckboxState(c.Key("outgoing-selected"), &state, "").Label("选择未 Push 仓库 " + source.Repository.Name).OnClick(func() {
+						ui.CheckboxState(c.Key("outgoing-selected"), &state, "").Label("Select unpushed repository " + source.Repository.Name).OnClick(func() {
 							if a.outgoingSelection == nil {
 								a.outgoingSelection = map[string]bool{}
 							}
@@ -45,14 +45,15 @@ func (a *client) outgoingPanel(c *ui.Context) {
 								a.outgoingSelection[commit.Key()] = state == ui.CheckOn
 							}
 						})
-						treeContentAction(ui.ButtonBase(c.Key("outgoing-name")).Grow(1).MinWidth(0).Justify(ui.Start).Label("未 Push 仓库 "+source.Repository.Name).Tooltip(source.Repository.Path+"\n"+source.Ref), func() { a.selectRepository(source.Repository) }, func() {
+						treeContentAction(ui.ButtonBase(c.Key("outgoing-name")).Grow(1).MinWidth(0).Justify(ui.Start).Label("Unpushed repository "+source.Repository.Name).Tooltip(source.Repository.Path+"\n"+source.Ref), func() { a.selectRepository(source.Repository) }, func() {
 							key := "outgoing:" + source.Repository.Path
 							a.workingCollapsed[key] = !a.workingCollapsed[key]
 						}).Children(func() {
+							folderTypeIcon(c)
 							ui.Textf(c, "%s · %s · %d", source.Repository.Name, strings.TrimPrefix(source.Ref, "refs/heads/"), len(source.Commits)).FontSize(12).SingleLine().Ellipsis("…").MinWidth(0).Grow(1)
 						})
 						ui.Button(c, "Push…").Label("Push " + source.Repository.Name).Height(22).FontSize(11).Disabled(a.busy || source.Ref == "").OnClick(func() { a.openChangesPush([]Outgoing{source}) })
-						ui.Button(c, "合并…").Label("合并未 Push 提交 " + source.Repository.Name).Height(22).FontSize(11).Disabled(a.busy || len(selected) < 2 || source.Ref == "").OnClick(func() { a.openChangesSquash(source) })
+						ui.Button(c, "Squash…").Label("Squash Unpushed Commits " + source.Repository.Name).Height(22).FontSize(11).Disabled(a.busy || len(selected) < 2 || source.Ref == "").OnClick(func() { a.openChangesSquash(source) })
 					})
 					if !a.workingCollapsed["outgoing:"+source.Repository.Path] {
 						ui.List(c.Key("outgoing-commits"), nil, len(source.Commits)).Height(float32(min(len(source.Commits), 10) * 25)).FillWidth().Shrink(0).ItemKey(func(i int) any { return source.Commits[len(source.Commits)-1-i].Key() }).Rows(func(item ui.ListRow) {
@@ -62,10 +63,10 @@ func (a *client) outgoingPanel(c *ui.Context) {
 				})
 			}
 			if count == 0 && !a.workingLoading {
-				ui.Text(c, "暂无未 Push 提交").FontSize(12).TextColor(c.Theme().TextMuted)
+				ui.Text(c, "No unpushed commits").FontSize(12).TextColor(c.Theme().TextMuted)
 			}
 		})
-		ui.Text(c, "勾选用于合并提交；Push 推送该分支全部未发布历史").FontSize(11).TextColor(c.Theme().TextMuted)
+		ui.Text(c, "Select commits to squash. Push sends all unpublished history on this branch").FontSize(11).TextColor(c.Theme().TextMuted)
 	})
 }
 func (a *client) changesActionDialog(c *ui.Context) {
@@ -75,7 +76,7 @@ func (a *client) changesActionDialog(c *ui.Context) {
 	ui.Modal(c.Key("changes-action"), &a.changesDialog.Open, func() {
 		ui.Column(c).Width(720).MaxHeight(720).Gap(10).Children(func() {
 			kind := a.changesDialog.Kind
-			title := map[string]string{"revert": "Revert 文件", "push": "Push 分支", "commit-push": "Commit & Push", "amend": "Amend 最新提交", "squash": "合并未 Push 提交"}[kind]
+			title := map[string]string{"revert": "Revert Files", "push": "Push Branch", "commit-push": "Commit & Push", "amend": "Amend Last Commit", "squash": "Squash Unpushed Commits"}[kind]
 			if kind == "commit-push" && len(a.changesDialog.Requests) > 0 && a.changesDialog.Requests[0].Amend {
 				title = "Amend Commit and Push"
 			}
@@ -84,16 +85,16 @@ func (a *client) changesActionDialog(c *ui.Context) {
 				ui.Text(c, a.changesDialog.Error).FontSize(12)
 			}
 			if kind == "revert" {
-				ui.Text(c, "丢弃所选文件的已暂存与未暂存修改，恢复 HEAD；新增及未跟踪文件将被删除。此操作不能通过 Git 找回未提交内容。").FontSize(12)
+				ui.Text(c, "Discard staged and unstaged changes in selected files and restore HEAD. Added and untracked files will be deleted. Git cannot recover discarded uncommitted content.").FontSize(12)
 			}
 			if kind == "squash" {
-				ui.Text(c, "仅处理同仓库未发布的线性历史。不连续选择会先合并所选提交，再重放其间及后续提交；冲突时保留原分支。最终文件树必须与原 HEAD 一致。").FontSize(12)
+				ui.Text(c, "Squash unpublished linear history within one repository. Nonconsecutive selections are squashed first, then intervening and subsequent commits are replayed. The original branch is preserved on conflict. The final tree must match the original HEAD.").FontSize(12)
 			}
 			if kind == "amend" {
-				ui.Text(c, "只修改该仓库最新未发布提交的 message，不带入其他暂存文件；已发布提交不会改写。").FontSize(12)
+				ui.Text(c, "Edit the message of the latest unpublished commit in this repository. Other staged files are excluded. Published commits are not rewritten.").FontSize(12)
 			}
 			if kind == "push" || kind == "commit-push" {
-				ui.Text(c, "推送当前分支全部历史，不强制覆盖远程分支。可分别设置各仓库的 remote 和目标分支；Commit 已成功但 Push 失败时，本地提交保留。").FontSize(12)
+				ui.Text(c, "Push all history on the current branch without force. Configure the remote and target branch per repository. Local commits are preserved if push fails.").FontSize(12)
 			}
 			ui.Scroll(c).MaxHeight(280).Gap(6).Children(func() {
 				for i := range a.changesDialog.PushTargets {
@@ -102,7 +103,7 @@ func (a *client) changesActionDialog(c *ui.Context) {
 						ui.Textf(c, "%s · %s", target.Source.Repository.Name, strings.TrimPrefix(target.Source.Ref, "refs/heads/")).Bold().SingleLine()
 						ui.Row(c).Gap(8).Children(func() {
 							ui.TextInput(c.Key("remote"), &target.Remote).Label("Push remote " + target.Source.Repository.Name).Width(130).Placeholder("origin")
-							ui.TextInput(c.Key("destination"), &target.Destination).Label("Push 分支 " + target.Source.Repository.Name).Grow(1).Placeholder("目标分支")
+							ui.TextInput(c.Key("destination"), &target.Destination).Label("Push Branch " + target.Source.Repository.Name).Grow(1).Placeholder("Target branch")
 						})
 					})
 				}
@@ -125,7 +126,7 @@ func (a *client) changesActionDialog(c *ui.Context) {
 				}
 			})
 			if kind == "squash" || kind == "amend" || kind == "commit-push" {
-				ui.TextArea(c.Key("changes-message"), &a.changesDialog.Message).Label("Changes 操作 message").Placeholder("Commit message").Height(110)
+				ui.TextArea(c.Key("changes-message"), &a.changesDialog.Message).Label("Changes operation message").Placeholder("Commit message").Height(110)
 			}
 			disabled := a.busy || ((kind == "squash" || kind == "amend" || kind == "commit-push") && strings.TrimSpace(a.changesDialog.Message) == "")
 			for _, target := range a.changesDialog.PushTargets {
@@ -134,8 +135,8 @@ func (a *client) changesActionDialog(c *ui.Context) {
 				}
 			}
 			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
-				ui.Button(c, "取消").OnClick(func() { a.changesDialog.Open = false })
-				ui.PrimaryButton(c, fmt.Sprintf("确认%s", title)).Disabled(disabled).OnClick(a.applyChangesDialog)
+				ui.Button(c, "Cancel").OnClick(func() { a.changesDialog.Open = false })
+				ui.PrimaryButton(c, fmt.Sprintf("Confirm %s", title)).Disabled(disabled).OnClick(a.applyChangesDialog)
 			})
 		})
 	})
@@ -144,23 +145,23 @@ func (a *client) changesActionDialog(c *ui.Context) {
 func (a *client) outgoingCommitRow(c *ui.Context, source Outgoing, commit Commit, selected []Commit) {
 	ui.Row(c.Key(commit.Hash)).Padding(0, 0, 0, 18).Gap(4).Height(25).AlignItems(ui.Center).Children(func() {
 		on := a.outgoingSelection[commit.Key()]
-		ui.Checkbox(c.Key("commit-selected"), &on, "").Label("选择未 Push Commit " + source.Repository.Name + "/" + shortHash(commit.Hash)).OnClick(func() {
+		ui.Checkbox(c.Key("commit-selected"), &on, "").Label("Select unpushed commit " + source.Repository.Name + "/" + shortHash(commit.Hash)).OnClick(func() {
 			if a.outgoingSelection == nil {
 				a.outgoingSelection = map[string]bool{}
 			}
 			a.outgoingSelection[commit.Key()] = on
 		})
-		ui.ButtonBase(c.Key("commit-content")).Grow(1).MinWidth(0).Justify(ui.Start).Gap(6).Label("未 Push Commit " + source.Repository.Name + "/" + shortHash(commit.Hash)).Tooltip(commit.Hash + "\n" + commit.Author + "\n" + commit.Subject).OnClick(func() { a.selectCommit(commit) }).ContextMenu(func(menu *ui.Menu) {
-			if menu.Item("查看提交").Chosen() {
+		ui.ButtonBase(c.Key("commit-content")).Grow(1).MinWidth(0).Justify(ui.Start).Gap(6).Label("Unpushed commit " + source.Repository.Name + "/" + shortHash(commit.Hash)).Tooltip(commit.Hash + "\n" + commit.Author + "\n" + commit.Subject).OnClick(func() { a.selectCommit(commit) }).ContextMenu(func(menu *ui.Menu) {
+			if menu.Item("Show Commit").Chosen() {
 				a.selectCommit(commit)
 			}
-			if menu.Item("Amend 最新提交…").Disabled(a.busy || commit.Hash != source.Head).Chosen() {
+			if menu.Item("Amend Last Commit…").Disabled(a.busy || commit.Hash != source.Head).Chosen() {
 				a.openChangesAmend(source)
 			}
-			if menu.Item("合并所选未 Push 提交…").Disabled(a.busy || len(selected) < 2).Chosen() {
+			if menu.Item("Squash Selected Unpushed Commits…").Disabled(a.busy || len(selected) < 2).Chosen() {
 				a.openChangesSquash(source)
 			}
-			if menu.Item("Push 当前分支…").Disabled(a.busy || source.Ref == "").Chosen() {
+			if menu.Item("Push Current Branch…").Disabled(a.busy || source.Ref == "").Chosen() {
 				a.openChangesPush([]Outgoing{source})
 			}
 		}).Children(func() {

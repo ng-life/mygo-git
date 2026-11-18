@@ -61,32 +61,32 @@ func (a *client) logPanel(c *ui.Context) {
 	ui.Column(c).Fill().Gap(0).Background(ideaPanel).Children(func() {
 		ui.Row(c).Height(32).Padding(3, 8).Gap(8).AlignItems(ui.Center).Background(ideaToolbar).Children(func() {
 			ui.Text(c, "Log").FontSize(12).Bold()
-			ui.TextInput(c.Key("log-query"), &a.logQuery).Bind(&a.logSearchHandle).Label("搜索提交").Placeholder("Text or hash / 作者 / 仓库").Width(230).Height(25)
-			scope := "当前分支"
+			ui.TextInput(c.Key("log-query"), &a.logQuery).Bind(&a.logSearchHandle).Label("Search Commits").Placeholder("Text or hash / Author / Repository").Width(230).Height(25)
+			scope := "Current Branch"
 			if a.group != "" {
 				scope = strings.TrimPrefix(a.group, "/")
 			}
 			scopeLabel := "Branch: " + scope
 			if a.tab == 2 && len(a.refSelection) > 1 {
-				scopeLabel = fmt.Sprintf("Refs: 已选 %d 个引用", len(a.refSelection))
+				scopeLabel = fmt.Sprintf("Refs: %d selected", len(a.refSelection))
 			}
 			ui.Text(c, scopeLabel).FontSize(11).SingleLine().Ellipsis("…").MinWidth(0).Shrink(1).Tooltip(scope)
 			ui.Spacer(c)
 			if len(a.activeCommits) > 0 {
-				ui.Button(c.Key("clear-commits"), "取消选择").OnClick(func() { a.commitSelection.Clear(); a.selectCommits(nil) })
+				ui.Button(c.Key("clear-commits"), "Deselect All").OnClick(func() { a.commitSelection.Clear(); a.selectCommits(nil) })
 			}
-			ui.Button(c.Key("reload-log"), "刷新 Log").OnClick(a.reloadHistory)
+			ui.Button(c.Key("reload-log"), "Refresh Log").OnClick(a.reloadHistory)
 		})
 		if a.historyLoading {
-			ui.Text(c, "正在读取提交…").FontSize(11).Padding(4, 8).TextColor(t.TextMuted)
+			ui.Text(c, "Loading commits…").FontSize(11).Padding(4, 8).TextColor(t.TextMuted)
 		}
 		if a.historyError != "" {
 			ui.Text(c, a.historyError).FontSize(11).Padding(4, 8)
 		}
 		if !a.historyLoading && len(commits) == 0 {
-			text := "选择仓库或分支以查看提交记录"
+			text := "Select a repository or branch to view commit history"
 			if a.logQuery != "" {
-				text = "没有匹配的提交"
+				text = "No matching commits"
 			}
 			ui.Text(c, text).Padding(6, 8).TextColor(t.TextMuted)
 		}
@@ -99,7 +99,7 @@ func (a *client) logPanel(c *ui.Context) {
 		} else {
 			ui.Column(c).Grow(1).FillWidth().MinHeight(0).Children(table)
 		}
-		ui.Text(c, fmt.Sprintf("%d / %d 条 · 已选 %d · Ctrl / ⌘ 增减选择 · Shift 连选 · 每仓库最多 200 条", len(commits), len(a.commits), len(a.activeCommits))).FontSize(10).TextColor(t.TextMuted).Height(20).Padding(3, 8)
+		ui.Text(c, fmt.Sprintf("%d / %d commits · %d selected · Ctrl / ⌘ to toggle · Shift for range · Up to 200 per repository", len(commits), len(a.commits), len(a.activeCommits))).FontSize(10).TextColor(t.TextMuted).Height(20).Padding(3, 8)
 	})
 }
 func (a *client) logTable(c *ui.Context, commits []Commit, visible []int, graph []logGraphRow, graphWidth float32) {
@@ -107,7 +107,7 @@ func (a *client) logTable(c *ui.Context, commits []Commit, visible []int, graph 
 	a.logRows.Selection = nil
 	a.logRows.Key = func(i int) any { return commits[i].Key() }
 	ui.Table(c.Key("commits"), &a.logRows, []ui.TableColumn{
-		{Title: "时间", Width: 108}, {Title: "作者", Width: 78}, {Title: "Graph", Width: max(float32(62), graphWidth)}, {Title: "仓库", Width: 100}, {Title: "提交说明", MinWidth: 220}, {Title: "Commit", Width: 78},
+		{Title: "Date", Width: 108}, {Title: "Author", Width: 78}, {Title: "Graph", Width: max(float32(62), graphWidth)}, {Title: "Repository", Width: 100}, {Title: "Commit Message", MinWidth: 220}, {Title: "Commit", Width: 78},
 	}, len(commits), func(row, col int) {
 		commit := commits[row]
 		text := ""
@@ -117,7 +117,7 @@ func (a *client) logTable(c *ui.Context, commits []Commit, visible []int, graph 
 		case 1:
 			text = commit.Author
 		case 2:
-			text = "提交拓扑 " + shortHash(commit.Hash)
+			text = "Commit graph " + shortHash(commit.Hash)
 		case 3:
 			text = commit.Repository.Name
 		case 4:
@@ -152,16 +152,16 @@ func (a *client) logTable(c *ui.Context, commits []Commit, visible []int, graph 
 
 func (a *client) filesPanel(c *ui.Context) {
 	ui.Column(c).Fill().Gap(0).Background(ideaPanel).Children(func() {
-		ui.Row(c).Height(25).Padding(3, 8).Background(ideaToolbar).Children(func() { ui.Textf(c, "变更文件 · %d 个提交", len(a.activeCommits)).FontSize(12).Bold() })
+		ui.Row(c).Height(25).Padding(3, 8).Background(ideaToolbar).Children(func() { ui.Textf(c, "Changed Files · %d commits", len(a.activeCommits)).FontSize(12).Bold() })
 		if a.detailLoading {
-			ui.Text(c, "正在合并文件变更…").FontSize(11).Padding(6, 8)
+			ui.Text(c, "Combining file changes…").FontSize(11).Padding(6, 8)
 			return
 		}
 		if a.detailError != "" {
 			ui.Text(c, a.detailError).FontSize(11).Padding(4, 8)
 		}
 		if len(a.files) == 0 {
-			ui.Text(c, "所选提交无文件变更").FontSize(11).Padding(6, 8).TextColor(c.Theme().TextMuted)
+			ui.Text(c, "No file changes in selected commits").FontSize(11).Padding(6, 8).TextColor(c.Theme().TextMuted)
 			return
 		}
 		ui.Scroll(c.Key("history-files")).Grow(1).Children(func() { a.historyFileTree(c) })
@@ -171,7 +171,7 @@ func (a *client) filesPanel(c *ui.Context) {
 				ui.Text(c, commit.Subject).FontSize(12).SingleLine().Ellipsis("…")
 				ui.Text(c, commit.Author+" · "+shortHash(commit.Hash)).FontSize(11).TextColor(c.Theme().TextMuted)
 			} else {
-				ui.Textf(c, "合并展示 %d 个提交的 %d 个文件", len(a.activeCommits), len(a.files)).FontSize(11).TextColor(c.Theme().TextMuted)
+				ui.Textf(c, "Combined view: %d commits, %d files", len(a.activeCommits), len(a.files)).FontSize(11).TextColor(c.Theme().TextMuted)
 			}
 		})
 	})
@@ -194,8 +194,8 @@ func (a *client) historyFileTree(c *ui.Context) {
 	ui.Tree(c.Key("history-file-tree"), func() {
 		for _, repo := range repos {
 			open := a.referenceOpen("history-files:" + repo.Path)
-			label := fmt.Sprintf("%s  %d 文件", repo.Name, len(grouped[repo.Path]))
-			treeContentAction(ui.TreeItem(c.Key(repo.Path), label, open, func() { a.historyFileNodes(c, repo, workingHierarchy(grouped[repo.Path]).Children, files) }).Label("变更仓库 "+repo.Name), nil, func() { *open = !*open })
+			label := fmt.Sprintf("%s  %d files", repo.Name, len(grouped[repo.Path]))
+			treeContentAction(folderTreeItem(c.Key(repo.Path), label, open, func() { a.historyFileNodes(c, repo, workingHierarchy(grouped[repo.Path]).Children, files) }).Label("Changed repository "+repo.Name), nil, func() { *open = !*open })
 		}
 	})
 }
@@ -203,7 +203,7 @@ func (a *client) historyFileNodes(c *ui.Context, repo Repository, nodes []*worki
 	for _, node := range nodes {
 		if node.File == nil {
 			open := a.referenceOpen("history-folder:" + repo.Path + "\x00" + node.Path)
-			treeContentAction(ui.TreeItem(c.Key(node.Path), node.Name, open, func() { a.historyFileNodes(c, repo, node.Children, files) }).Label("变更目录 "+node.Path).Tooltip(node.Path), nil, func() { *open = !*open })
+			treeContentAction(folderTreeItem(c.Key(node.Path), node.Name, open, func() { a.historyFileNodes(c, repo, node.Children, files) }).Label("Changed directory "+node.Path).Tooltip(node.Path), nil, func() { *open = !*open })
 			continue
 		}
 		file := files[workingFileKey(repo.Path, node.File.Path)]
@@ -211,7 +211,7 @@ func (a *client) historyFileNodes(c *ui.Context, repo Repository, nodes []*worki
 		if a.selectedFile == file.Key() {
 			color = c.Theme().AccentText
 		}
-		item := ui.TreeItem(c.Key(node.Path), node.Name, nil, nil).Label(file.Path).Tooltip(repo.Path + "\n" + file.Path).Selected(a.selectedFile == file.Key()).TextColor(color)
+		item := fileTreeItem(c.Key(node.Path), node.Name, file.Path).Label(file.Path).Tooltip(repo.Path + "\n" + file.Path).Selected(a.selectedFile == file.Key()).TextColor(color)
 		item.OnClick(func() { a.selectFile(file) })
 	}
 }

@@ -174,15 +174,15 @@ func TestSingleRepositoryOperationsStayScoped(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(first.Path, "tracked.txt"), []byte("after\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	out, err := runRepositoryOperation(first.Path, "diff · 工作区修改")
+	out, err := runRepositoryOperation(first.Path, "Diff · Working Tree Changes")
 	if err != nil || !strings.Contains(out, "+after") {
 		t.Fatalf("working tree diff: %s %v", out, err)
 	}
-	out, err = runRepositoryOperation(first.Path, "刷新状态")
+	out, err = runRepositoryOperation(first.Path, "Refresh Status")
 	if err != nil || !strings.Contains(out, "tracked.txt") {
 		t.Fatalf("status: %s %v", out, err)
 	}
-	out, err = runRepositoryOperation(first.Path, "log · 当前分支提交")
+	out, err = runRepositoryOperation(first.Path, "Log · Current Branch")
 	if err != nil || !strings.Contains(out, "change tracked.txt") {
 		t.Fatalf("log: %s %v", out, err)
 	}

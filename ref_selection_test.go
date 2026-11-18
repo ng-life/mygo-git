@@ -39,7 +39,7 @@ func TestReferenceSelectionAndComparisonUI(t *testing.T) {
 	if err := tester.RightClick("alpha  (1)"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tester.ChooseMenuItem("与 HEAD 比较"); err != nil {
+	if err := tester.ChooseMenuItem("Compare with HEAD"); err != nil {
 		t.Fatal(err)
 	}
 	if a.review.Request.Kind != "direct" || a.review.Request.Base != "refs/heads/alpha" || a.review.Request.Target != "HEAD" || a.review.Error != "" || len(a.review.Items) != 1 {
@@ -48,7 +48,7 @@ func TestReferenceSelectionAndComparisonUI(t *testing.T) {
 	if err := tester.RightClick("HEAD (Current Branch)"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tester.ChooseMenuItem("与 Worktree 比较"); err != nil {
+	if err := tester.ChooseMenuItem("Compare with Worktree"); err != nil {
 		t.Fatal(err)
 	}
 	if a.review.Request.Kind != "workspace" || a.review.Request.Base != "HEAD" || a.review.Request.Target != "" {
@@ -72,7 +72,7 @@ func TestReferenceSelectionAndComparisonUI(t *testing.T) {
 	if len(a.refSelection) != 2 {
 		t.Fatal("context menu lost multiselection")
 	}
-	if err := tester.ChooseMenuItem("比较所选两个引用"); err != nil {
+	if err := tester.ChooseMenuItem("Compare Selected Refs"); err != nil {
 		t.Fatal(err)
 	}
 	if a.review.Request.Base != "refs/heads/alpha" || a.review.Request.Target != "refs/heads/beta" || len(a.review.Items) != 1 {
@@ -81,7 +81,7 @@ func TestReferenceSelectionAndComparisonUI(t *testing.T) {
 	if err := tester.RightClick("beta  (1)"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tester.ChooseMenuItem("反向比较所选两个引用"); err != nil {
+	if err := tester.ChooseMenuItem("Compare Selected Refs in Reverse"); err != nil {
 		t.Fatal(err)
 	}
 	if a.review.Request.Base != "refs/heads/beta" || a.review.Request.Target != "refs/heads/alpha" {
@@ -97,17 +97,17 @@ func TestReferenceSelectionAndComparisonUI(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, item := range tester.Menu() {
-		if strings.Contains(item, "比较") || strings.Contains(item, "checkout") || strings.Contains(item, "rebase") {
+		if strings.Contains(item, "Compare") || strings.Contains(item, "Checkout") || strings.Contains(item, "Rebase") {
 			t.Fatalf("invalid multiselect operation: %+v", item)
 		}
 	}
-	if err := tester.ChooseMenuItem("删除所选引用…"); err != nil {
+	if err := tester.ChooseMenuItem("Delete Selected Refs…"); err != nil {
 		t.Fatal(err)
 	}
 	if !a.refDialog.Open || len(a.refDialog.Choices) != 3 {
 		t.Fatal("batch confirmation missing")
 	}
-	if err := tester.Click("取消"); err != nil {
+	if err := tester.Click("Cancel"); err != nil {
 		t.Fatal(err)
 	}
 	if len(mustGit(t, a.repos[0].Path, "branch", "--list", "alpha", "beta", "gamma")) == 0 {
@@ -117,13 +117,13 @@ func TestReferenceSelectionAndComparisonUI(t *testing.T) {
 	if err := tester.RightClick("Tag alpha  (1)"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tester.ChooseMenuItem("与指定版本比较…"); err != nil {
+	if err := tester.ChooseMenuItem("Compare with Revision…"); err != nil {
 		t.Fatal(err)
 	}
 	if !a.review.Dialog || a.review.Base != "refs/tags/alpha" || a.review.Kind != "direct" {
 		t.Fatal("tag comparison is ambiguous")
 	}
-	if err := tester.Click("取消"); err != nil {
+	if err := tester.Click("Cancel"); err != nil {
 		t.Fatal(err)
 	}
 	if err := tester.Click("HEAD (Current Branch)"); err != nil {
@@ -228,10 +228,10 @@ func TestReferenceBatchDeleteConfirmationAndPartialFailure(t *testing.T) {
 	if err := tester.RightClick("beta  (1)"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tester.ChooseMenuItem("删除所选引用…"); err != nil {
+	if err := tester.ChooseMenuItem("Delete Selected Refs…"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tester.Click("确认批量删除引用"); err != nil {
+	if err := tester.Click("Confirm Delete Refs"); err != nil {
 		t.Fatal(err)
 	}
 	for _, name := range []string{"alpha", "beta"} {
@@ -242,7 +242,7 @@ func TestReferenceBatchDeleteConfirmationAndPartialFailure(t *testing.T) {
 	if _, err := git(path, "show-ref", "--verify", "refs/heads/gamma"); err != nil {
 		t.Fatal("unmerged branch was removed")
 	}
-	if !strings.Contains(a.output, "失败") || !strings.Contains(a.output, "gamma") {
+	if !strings.Contains(a.output, "failed") || !strings.Contains(a.output, "gamma") {
 		t.Fatal("per-ref error missing: " + a.output)
 	}
 	if len(a.refSelection) != 1 || a.refSelection[0].Name != "gamma" {
@@ -284,5 +284,21 @@ func TestReferenceDeleteSymbolicTagKeepsTargetBranch(t *testing.T) {
 	}
 	if _, err := git(path, "symbolic-ref", "--quiet", "refs/tags/alias"); err == nil {
 		t.Fatal("tag alias remains")
+	}
+}
+
+func TestCurrentLocalBranchCannotBeDeletedFromMenu(t *testing.T) {
+	a := referenceTestClient(t)
+	branch := a.repos[0].Branch
+	tester := ui.NewTester(a.view, 1560, 940)
+	label := branch + "  (1)"
+	if err := tester.RightClick(label); err != nil {
+		t.Fatal(err)
+	}
+	if err := tester.ChooseMenuItem("Delete Local Branch…"); err == nil {
+		t.Fatal("current branch delete menu was enabled")
+	}
+	if a.branchDeletion.Open {
+		t.Fatal("current branch deletion was requested")
 	}
 }

@@ -37,14 +37,14 @@ func parseWorkingStatus(data []byte) ([]WorkingFile, error) {
 	for i := 0; i < len(tokens) && len(tokens[i]) > 0; i++ {
 		record := string(tokens[i])
 		if len(record) < 4 || record[2] != ' ' {
-			return nil, fmt.Errorf("无法解析工作区状态")
+			return nil, fmt.Errorf("Cannot parse working tree status")
 		}
 		f := WorkingFile{Status: record[:2], Path: record[3:]}
 		// In porcelain -z, a rename is emitted as destination NUL source NUL.
 		if strings.ContainsAny(f.Status, "RC") {
 			i++
 			if i >= len(tokens) || len(tokens[i]) == 0 {
-				return nil, fmt.Errorf("重命名路径不完整")
+				return nil, fmt.Errorf("Incomplete rename paths")
 			}
 			f.OldPath = string(tokens[i])
 		}
@@ -149,11 +149,11 @@ func readWorkingComparisonContext(ctx context.Context, tree WorkingTree, file Wo
 	}
 	if err == nil {
 		if info.IsDir() {
-			result.Notice = "子模块或目录，请在对应仓库查看和提交"
+			result.Notice = "Submodule or directory; view and commit in its repository"
 			return result, nil
 		}
 		if info.Size() > int64(comparisonBlobLimit(ctx)) {
-			result.Notice = fmt.Sprintf("文件超过 %d MiB，未加载文本", comparisonBlobLimit(ctx)/(1024*1024))
+			result.Notice = fmt.Sprintf("File exceeds %d MiB; text not loaded", comparisonBlobLimit(ctx)/(1024*1024))
 			return result, nil
 		}
 		var content []byte
@@ -168,7 +168,7 @@ func readWorkingComparisonContext(ctx context.Context, tree WorkingTree, file Wo
 			return result, err
 		}
 		if bytes.IndexByte(content, 0) >= 0 || !utf8.Valid(content) {
-			result.Notice = "二进制或非 UTF-8 文件，无法进行文本比较"
+			result.Notice = "Text comparison is unavailable for binary or non-UTF-8 files"
 			return result, nil
 		}
 		result.After = string(content)
@@ -220,27 +220,27 @@ func commitWorkingTreeWithCommand(request CommitRequest, message string, run fun
 	tree := request.Tree
 	path := tree.Repository.Path
 	if strings.TrimSpace(message) == "" {
-		return "", fmt.Errorf("Commit message 不能为空")
+		return "", fmt.Errorf("Commit message is required")
 	}
 	if len(request.Files) == 0 && !request.Amend {
-		return "", fmt.Errorf("没有勾选文件")
+		return "", fmt.Errorf("No files selected")
 	}
 	if tree.Error != "" {
-		return "", fmt.Errorf("工作区状态读取失败：%s", tree.Error)
+		return "", fmt.Errorf("Failed to read working tree status: %s", tree.Error)
 	}
 	if operationInProgress(path) {
-		return "", fmt.Errorf("存在未完成的 Git 操作，请先处理")
+		return "", fmt.Errorf("Finish the in-progress Git operation first")
 	}
 	current := readWorkingTree(tree.Repository)
 	if current.Error != "" {
 		return "", fmt.Errorf("%s", current.Error)
 	}
 	if current.Head != tree.Head || current.Ref != tree.Ref {
-		return "", fmt.Errorf("仓库分支或 HEAD 已变化，请刷新工作区后重试")
+		return "", fmt.Errorf("Repository branch or HEAD changed. Refresh the working tree and retry")
 	}
 	if request.Amend {
 		if current.Head == "" {
-			return "", fmt.Errorf("首次提交前不能 Amend")
+			return "", fmt.Errorf("Cannot amend before the initial commit")
 		}
 		if err := requireUnpublished(path, current.Head); err != nil {
 			return "", err
@@ -248,7 +248,7 @@ func commitWorkingTreeWithCommand(request CommitRequest, message string, run fun
 	}
 	for _, f := range current.Files {
 		if f.Conflicted() {
-			return "", fmt.Errorf("工作区存在未解决的冲突，请先处理")
+			return "", fmt.Errorf("Resolve working tree conflicts first")
 		}
 	}
 	currentFiles := map[string]WorkingFile{}
@@ -262,7 +262,7 @@ func commitWorkingTreeWithCommand(request CommitRequest, message string, run fun
 	for _, file := range request.Files {
 		if file.OldPath != "" && !selectedPaths[file.OldPath] {
 			if _, recreated := currentFiles[file.OldPath]; recreated {
-				return "", fmt.Errorf("重命名前路径出现新的工作区变更，请刷新并确认文件选择：%s", file.OldPath)
+				return "", fmt.Errorf("New working tree changes at the original path. Refresh and verify file selection: %s", file.OldPath)
 			}
 		}
 	}
@@ -271,7 +271,7 @@ func commitWorkingTreeWithCommand(request CommitRequest, message string, run fun
 	for _, file := range request.Files {
 		now, ok := currentFiles[file.Path]
 		if !ok || now.OldPath != file.OldPath {
-			return "", fmt.Errorf("所选文件状态已变化，请刷新后重试：%s", file.Path)
+			return "", fmt.Errorf("Selected file status changed. Refresh and retry: %s", file.Path)
 		}
 		candidates := []string{now.Path}
 		// A staged rename/deletion has already removed its old path from the
@@ -297,7 +297,7 @@ func commitWorkingTreeWithCommand(request CommitRequest, message string, run fun
 				continue
 			}
 			if !validWorkingPath(p) {
-				return "", fmt.Errorf("无效文件路径：%q", p)
+				return "", fmt.Errorf("Invalid file path: %q", p)
 			}
 			if !seen[p] {
 				seen[p] = true
@@ -349,17 +349,17 @@ func commitWorkingTreeWithCommand(request CommitRequest, message string, run fun
 		}
 		out, err = git(path, "add", "-A", "--pathspec-from-file="+staging.Name(), "--pathspec-file-nul")
 		if err != nil {
-			return out, fmt.Errorf("暂存失败：%w", err)
+			return out, fmt.Errorf("Staging failed: %w", err)
 		}
 	}
 
 	head, ref := currentPosition(path)
 	if head != tree.Head || ref != tree.Ref {
-		return "", fmt.Errorf("暂存后仓库分支或 HEAD 已变化；暂存区已保留，请刷新检查")
+		return "", fmt.Errorf("Repository branch or HEAD changed after staging. Index preserved; refresh to verify")
 	}
 	expectedTree, snapshotErr := git(path, "write-tree")
 	if snapshotErr != nil {
-		return "", fmt.Errorf("记录提交快照失败：%w", snapshotErr)
+		return "", fmt.Errorf("Failed to capture commit snapshot: %w", snapshotErr)
 	}
 	args := []string{"commit", "--only", "--cleanup=verbatim", "--file", msg.Name()}
 	if request.Amend {

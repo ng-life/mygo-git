@@ -26,7 +26,7 @@ func TestWindowShortcutsTabsFocusAndModalGuard(t *testing.T) {
 	if a.commitMessage != "keyboard message" {
 		t.Fatal("commit focus shortcut failed", a.commitMessage)
 	}
-	if err := tester.Click("新建 Changelist"); err != nil {
+	if err := tester.Click("New Changelist"); err != nil {
 		t.Fatal(err)
 	}
 	before := mustGit(t, a.repos[0].Path, "rev-parse", "HEAD")
@@ -35,7 +35,7 @@ func TestWindowShortcutsTabsFocusAndModalGuard(t *testing.T) {
 	if a.tab != 1 || !a.changelistDialog.Open || mustGit(t, a.repos[0].Path, "rev-parse", "HEAD") != before {
 		t.Fatal("window shortcuts escaped modal")
 	}
-	if err := tester.Click("取消"); err != nil {
+	if err := tester.Click("Cancel"); err != nil {
 		t.Fatal(err)
 	}
 	tester.Key(mod, ui.Key2)
@@ -57,10 +57,9 @@ func TestWindowShortcutsTabsFocusAndModalGuard(t *testing.T) {
 	if mustGit(t, a.repos[0].Path, "rev-parse", "HEAD") == before {
 		t.Fatal("commit shortcut did not commit selection")
 	}
-	if err := tester.Click("快捷键"); err != nil {
-		t.Fatal(err)
-	}
-	if !tester.HasText("快捷键") || !a.shortcutHelpOpen {
+	chooseApplicationAction(t, a, "shortcuts")
+	tester.Frame()
+	if !tester.HasText("Keyboard Shortcuts") || !a.shortcutHelpOpen {
 		t.Fatal("help missing")
 	}
 }
@@ -68,10 +67,10 @@ func TestBackgroundProgressAndFailureUI(t *testing.T) {
 	a := testClient(nil)
 	var pending func() func()
 	a.writeRunner = func(job func() func()) { pending = job }
-	a.jobProgress("Pull · 2 个仓库", func(report taskReporter) (func(), error) {
+	a.jobProgress("Pull · 2 repositories", func(report taskReporter) (func(), error) {
 		report("Pull · app-one", 0, 4, nil)
 		report("Pull · app-one", 1, 4, nil)
-		report("Pull · app-two", 2, 4, fmt.Errorf("app-two 拉取失败"))
+		report("Pull · app-two", 2, 4, fmt.Errorf("app-two 拉取failed"))
 		return func() {}, nil
 	})
 	tester := ui.NewTester(a.view, 1560, 940)
@@ -84,13 +83,13 @@ func TestBackgroundProgressAndFailureUI(t *testing.T) {
 	if task.Done != 2 || task.Total != 4 || taskProgress(task) != .5 || task.Finished {
 		t.Fatalf("%+v", task)
 	}
-	if !tester.HasText("2 / 4 步") {
+	if !tester.HasText("2 / 4 steps") {
 		t.Fatal("status progress missing", tester.Texts())
 	}
-	if err := tester.Click("后台任务"); err != nil {
+	if err := tester.Click("Background Tasks"); err != nil {
 		t.Fatal(err)
 	}
-	if !tester.HasText("Pull · app-two: app-two 拉取失败") {
+	if !tester.HasText("Pull · app-two: app-two 拉取failed") {
 		t.Fatal("task details missing")
 	}
 	if dest := os.Getenv("MYGO_TASKS_SCREENSHOT"); dest != "" {
@@ -104,13 +103,13 @@ func TestBackgroundProgressAndFailureUI(t *testing.T) {
 		}
 		f.Close()
 	}
-	if err := tester.Click("关闭"); err != nil {
+	if err := tester.Click("Close"); err != nil {
 		t.Fatal(err)
 	}
 	apply()
 	tester.Frame()
 	task = a.tasks.snapshot()[0]
-	if !task.Finished || task.Error == "" || !tester.HasText("完成，有失败") {
+	if !task.Finished || task.Error == "" || !tester.HasText("Completed with Errors") {
 		t.Fatal("partial failure incorrectly marked successful", task)
 	}
 }

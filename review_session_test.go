@@ -76,7 +76,7 @@ func TestReviewNetAncestryAndRevertedChanges(t *testing.T) {
 	r.Net = true
 	r.Commits = append(r.Commits, Commit{Repository: repo, Hash: mustGit(t, path, "rev-parse", "HEAD")})
 	items, _, problem = readReview(context.Background(), r)
-	if len(items) != 0 || !strings.Contains(problem, "祖先链") {
+	if len(items) != 0 || !strings.Contains(problem, "ancestor chain") {
 		t.Fatalf("unrelated branches %v %s", items, problem)
 	}
 }
@@ -175,25 +175,24 @@ func TestReviewUnifiedUIAndNavigation(t *testing.T) {
 	a.reviewProgressPath = filepath.Join(t.TempDir(), "progress.json")
 	a.readRunner = func(w func() func()) { w()() }
 	tester := ui.NewTester(a.view, 1560, 940)
-	if err := tester.Click("Review…"); err != nil {
-		t.Fatal(err)
-	}
-	if !tester.HasText("开始 Review") {
+	chooseApplicationAction(t, a, "review")
+	tester.Frame()
+	if !tester.HasText("Start Review") {
 		t.Fatal(tester.Texts())
 	}
-	if err := tester.Click("开始审查"); err != nil {
+	if err := tester.Click("Start Review"); err != nil {
 		t.Fatal(err)
 	}
 	if !a.review.Open || len(a.review.Items) != 2 {
 		t.Fatal(a.review.Error)
 	}
-	if err := tester.Click("Review 文件 one.txt"); err != nil {
+	if err := tester.Click("Review file one.txt"); err != nil {
 		t.Fatal(err)
 	}
 	if !tester.HasText("local") {
 		t.Fatal(tester.Texts())
 	}
-	if err := tester.Click("标记已读 one.txt"); err != nil {
+	if err := tester.Click("Mark as Reviewed one.txt"); err != nil {
 		t.Fatal(err)
 	}
 	if !a.isReviewed(a.review.Items[0]) {
@@ -214,7 +213,7 @@ func TestReviewUnifiedUIAndNavigation(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if err := tester.Click("结束 Review"); err != nil {
+	if err := tester.Click("Close Review"); err != nil {
 		t.Fatal(err)
 	}
 	if a.review.Open || a.selectedFile != "" {
@@ -296,19 +295,19 @@ func TestReviewCompactTreeAndCommitModeSwitchUI(t *testing.T) {
 	if !tester.HasText("src/deep") {
 		t.Fatal(tester.Texts())
 	}
-	if err := tester.Click("Review 文件 src/deep/file.txt"); err != nil {
+	if err := tester.Click("Review file src/deep/file.txt"); err != nil {
 		t.Fatal(err)
 	}
 	if len(a.comparisons) != 1 || a.comparisons[0].Comparison.Before != "base\n" || a.comparisons[0].Comparison.After != "two\n" {
 		t.Fatal("wrong net contents")
 	}
-	if err := tester.Click("逐提交"); err != nil {
+	if err := tester.Click("Per Commit"); err != nil {
 		t.Fatal(err)
 	}
 	if len(a.comparisons) != 2 {
 		t.Fatal("mode switch did not refresh selected file")
 	}
-	if err := tester.Click("净差异"); err != nil {
+	if err := tester.Click("Net Diff"); err != nil {
 		t.Fatal(err)
 	}
 	if len(a.comparisons) != 1 {
@@ -330,7 +329,7 @@ func TestReviewBranchPerCommitAndResolvedBaseline(t *testing.T) {
 	repo := inspect(Entry{Path: path, Name: "app"})
 	r := ReviewRequest{Kind: "merge-base", Base: "baseline", Target: "feature/review", Repositories: []Repository{repo}}
 	items, summary, problem := readReview(context.Background(), r)
-	if problem != "" || len(items) != 1 || len(items[0].Parts) != 2 || !strings.Contains(summary, baseline) || !strings.Contains(summary, "共同祖先 ["+base+"]") {
+	if problem != "" || len(items) != 1 || len(items[0].Parts) != 2 || !strings.Contains(summary, baseline) || !strings.Contains(summary, "Merge bases ["+base+"]") {
 		t.Fatalf("%v %s %s", items, summary, problem)
 	}
 	r.Net = true

@@ -113,20 +113,19 @@ func TestScanSettingsUIReplacesToolbarScanning(t *testing.T) {
 	a := testClient(nil)
 	a.scanFolders = []string{"/Users/example/Projects", "/Users/example/my-project"}
 	tester := ui.NewTester(a.view, 1560, 940)
-	if tester.HasText("扫描添加") || tester.HasText("选择目录") {
+	if tester.HasText("Scan and Add") || tester.HasText("Choose Directory") {
 		t.Fatal("scanning remains in toolbar")
 	}
-	if err := tester.Click("设置"); err != nil {
-		t.Fatal(err)
-	}
-	if !tester.HasText("设置 · 扫描文件夹") {
+	chooseApplicationAction(t, a, "settings")
+	tester.Frame()
+	if !tester.HasText("Version Control  ›  Git") {
 		t.Fatal(tester.Texts())
 	}
-	if err := tester.Click("扫描文件夹路径"); err != nil {
+	if err := tester.Click("Scan root path"); err != nil {
 		t.Fatal(err)
 	}
 	tester.Type("/Users/example/more")
-	if err := tester.Click("添加文件夹"); err != nil {
+	if err := tester.Click("Add Directory"); err != nil {
 		t.Fatal(err)
 	}
 	if len(a.settings.Folders) != 3 || len(a.scanFolders) != 2 {
@@ -142,13 +141,13 @@ func TestScanSettingsUIReplacesToolbarScanning(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if err := tester.Click("移除扫描文件夹 /Users/example/more"); err != nil {
+	if err := tester.Click("Remove scan root /Users/example/more"); err != nil {
 		t.Fatal(err)
 	}
 	if len(a.settings.Folders) != 2 {
 		t.Fatal("remove failed")
 	}
-	if err := tester.Click("取消"); err != nil {
+	if err := tester.Click("Cancel"); err != nil {
 		t.Fatal(err)
 	}
 	tester.Frame()
@@ -157,7 +156,7 @@ func TestScanSettingsUIReplacesToolbarScanning(t *testing.T) {
 	}
 }
 
-func TestSaveAndScanFoldersKeepsExistingRepositories(t *testing.T) {
+func TestSaveAndScanFoldersSynchronizesRepositories(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
@@ -185,7 +184,7 @@ func TestSaveAndScanFoldersKeepsExistingRepositories(t *testing.T) {
 		t.Fatalf("entries: %v %v", entries, err)
 	}
 	a.scanFoldersJob(nil, true)
-	if len(a.scanFolders) != 0 || len(a.entries) != 2 {
-		t.Fatal("removing roots removed registered repositories")
+	if len(a.scanFolders) != 0 || len(a.entries) != 0 || len(a.repos) != 0 {
+		t.Fatal("removing all roots must clear registered repositories")
 	}
 }

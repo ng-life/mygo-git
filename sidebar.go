@@ -7,6 +7,8 @@ import (
 )
 
 func (a *client) selectRepository(r Repository) {
+	a.saveEditorContext()
+	defer a.restoreEditorContext()
 	if a.review.Open {
 		a.closeReview()
 	}
@@ -40,51 +42,51 @@ func (a *client) repositoryAction(r Repository, action string) {
 	})
 }
 func (a *client) branchMenu(m *ui.Menu, branch string, remote bool, targets []Repository) {
-	m.Item(fmt.Sprintf("%s · 全部 %d 个仓库", branch, len(targets))).Disabled(true)
+	m.Item(fmt.Sprintf("%s · All %d repositories", branch, len(targets))).Disabled(true)
 	m.Separator()
-	if m.Item("Review… · 图形比较此分支").Chosen() {
+	if m.Item("Review… · Compare Branch").Chosen() {
 		a.openReviewDialog(targets, fullBranchRef(branch, remote))
 	}
 	for _, op := range []struct{ action, label string }{
-		{"checkout", "checkout · 切换到此分支"},
-		{"merge", "merge · 合并到各仓库当前分支"},
-		{"rebase", "rebase · 各仓库当前分支变基到此"},
-		{"diff", "diff · 当前 HEAD 与此分支比较"},
-		{"log", "log · 查看此分支提交"},
-		{"刷新状态", "刷新状态 · 对应仓库"},
-		{"Fetch", "Fetch · 对应仓库"},
-		{"Pull", "Pull · 各仓库当前分支"},
+		{"checkout", "Checkout Branch"},
+		{"merge", "Merge into Current Branch in Each Repository"},
+		{"rebase", "Rebase Current Branch in Each Repository onto This Branch"},
+		{"diff", "Diff · HEAD to Branch"},
+		{"log", "Log · Branch History"},
+		{"Refresh Status", "Refresh Status · Related Repositories"},
+		{"Fetch", "Fetch · Related Repositories"},
+		{"Pull", "Pull · Current Branch in Each Repository"},
 	} {
 		if m.Item(op.label).Disabled(a.busy || len(targets) == 0).Chosen() {
 			a.runBranchAction(op.action, branch, remote, targets)
 		}
 	}
 	m.Separator()
-	label := "删除本地分支…"
+	label := "Delete Local Branch…"
 	if remote {
-		label = "删除远程分支…"
+		label = "Delete Remote Branch…"
 	}
-	if m.Item(label).Disabled(a.busy || len(targets) == 0).Chosen() {
+	if m.Item(label).Disabled(a.busy || len(targets) == 0 || (!remote && currentLocalBranch(branch, targets))).Chosen() {
 		a.requestBranchDeletion(branch, remote, targets)
 	}
 
 }
 func (a *client) repositoryMenu(m *ui.Menu, r Repository) {
-	m.Item(r.Name + " · 仅此仓库").Disabled(true)
+	m.Item(r.Name + " · This repository").Disabled(true)
 	m.Separator()
-	if m.Item("Review… · 当前工作区").Chosen() {
+	if m.Item("Review… · Working Tree").Chosen() {
 		a.openReviewDialog([]Repository{r}, "")
 	}
-	for _, action := range []string{"刷新状态", "Fetch", "Pull", "diff · 工作区修改", "log · 当前分支提交"} {
+	for _, action := range []string{"Refresh Status", "Fetch", "Pull", "Diff · Working Tree Changes", "Log · Current Branch"} {
 		if m.Item(action).Disabled(a.busy).Chosen() {
 			a.repositoryAction(r, action)
 		}
 	}
 	m.Separator()
 	for _, remote := range []bool{false, true} {
-		title := "本地分支操作"
+		title := "Local Branch Operations"
 		if remote {
-			title = "远程分支操作"
+			title = "Remote Branch Operations"
 		}
 		branches := repositoryBranches(r, remote)
 		m.Submenu(title, func(sub *ui.Menu) {
@@ -96,8 +98,8 @@ func (a *client) repositoryMenu(m *ui.Menu, r Repository) {
 }
 func (a *client) repositorySection(c *ui.Context) {
 	ui.Column(c.Key("repositories")).Fill().Padding(5, 4).Gap(4).Children(func() {
-		ui.Text(c, "仓库列表").Bold().TextColor(c.Theme().TextMuted)
-		ui.TextInput(c.Key("repository-search"), &a.repositoryQuery).Bind(&a.repositorySearchHandle).Placeholder("搜索仓库").Label("搜索仓库")
+		ui.Text(c, "Repositories").Bold().TextColor(c.Theme().TextMuted)
+		ui.TextInput(c.Key("repository-search"), &a.repositoryQuery).Bind(&a.repositorySearchHandle).Placeholder("Search Repositories").Label("Search Repositories")
 		ui.Scroll(c).Grow(1).Children(func() {
 			count := 0
 			for _, repo := range a.repos {
@@ -112,7 +114,7 @@ func (a *client) repositorySection(c *ui.Context) {
 						if *open {
 							arrow = "▾"
 						}
-						ui.ButtonBase(c.Key("repository-disclosure")).Width(18).Height(22).Label("展开仓库 " + repo.Name).OnClick(func() { a.toggleRepositoryTree(repo) }).Children(func() { ui.Text(c, arrow) })
+						ui.ButtonBase(c.Key("repository-disclosure")).Width(18).Height(22).Label("Expand repository " + repo.Name).OnClick(func() { a.toggleRepositoryTree(repo) }).Children(func() { ui.Text(c, arrow) })
 						name := ui.ButtonBase(c.Key("repository-select")).Grow(1).MinWidth(0).Justify(ui.Start).Height(22).Label(repo.Name).Tooltip(repositoryStateTooltip(repo))
 						if a.repositoryPath == repo.Path {
 							name.Background(ideaSelection).TextColor(c.Theme().Text).Bold()
@@ -120,6 +122,7 @@ func (a *client) repositorySection(c *ui.Context) {
 						treeContentAction(name, func() { a.selectRepository(repo) }, func() { a.toggleRepositoryTree(repo) }).OnShortcut(0, ui.KeyRight, func() { *open = true; a.loadRepositoryFiles(repo, false) }).OnShortcut(0, ui.KeyLeft, func() { *open = false }).ContextMenu(func(m *ui.Menu) { a.repositoryMenu(m, repo) }).Children(func() {
 							color := repositoryStateColor(repo, c.Theme().TextMuted)
 							ui.Row(c).Grow(1).MinWidth(0).Gap(6).AlignItems(ui.Center).Children(func() {
+								folderTypeIcon(c)
 								ui.Text(c, repo.Name).FontSize(12).Bold().SingleLine().Ellipsis("…").Shrink(1).MinWidth(0).TextColor(c.Theme().Text)
 								ui.Text(c, repo.Branch).FontSize(12).Bold().SingleLine().Ellipsis("…").MinWidth(0).Shrink(1).TextColor(color).Tooltip(repositoryStateTooltip(repo))
 								if repo.Ahead > 0 {
@@ -146,9 +149,9 @@ func (a *client) repositorySection(c *ui.Context) {
 				})
 			}
 			if count == 0 {
-				text := "暂无仓库"
+				text := "No repositories"
 				if len(a.repos) > 0 {
-					text = "暂无匹配仓库"
+					text = "No matching repositories"
 				}
 				ui.Text(c, text).FontSize(12).TextColor(c.Theme().TextMuted)
 			}

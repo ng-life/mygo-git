@@ -39,7 +39,7 @@ func TestChangesSplitRevertSquashAndPushUI(t *testing.T) {
 	a := changesTestClient(t, path)
 	tester := ui.NewTester(a.view, 1560, 940)
 	upper, _ := tester.Find("Changelists")
-	lower, ok := tester.Find("未 Push 提交")
+	lower, ok := tester.Find("Unpushed Commits")
 	if !ok || lower.Y <= upper.Y || lower.Y < 450 {
 		t.Fatalf("Changes split missing: %+v %+v", upper, lower)
 	}
@@ -59,39 +59,39 @@ func TestChangesSplitRevertSquashAndPushUI(t *testing.T) {
 	if err := tester.RightClick("file.txt"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tester.ChooseMenuItem("Revert 此文件…"); err != nil {
+	if err := tester.ChooseMenuItem("Revert This File…"); err != nil {
 		t.Fatal(err)
 	}
 	if len(a.changesDialog.Requests) != 1 || len(a.changesDialog.Requests[0].Files) != 1 {
 		t.Fatal("single-file revert scope wrong")
 	}
-	if err := tester.Click("取消"); err != nil {
+	if err := tester.Click("Cancel"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tester.Click("选择仓库 app"); err != nil {
+	if err := tester.Click("Select repository app"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tester.Click("Revert 已选文件"); err != nil {
+	if err := tester.Click("Revert Selected Files"); err != nil {
 		t.Fatal(err)
 	}
-	if len(a.changesDialog.Requests[0].Files) != 2 || !tester.HasText("新增及未跟踪文件将被删除") {
+	if len(a.changesDialog.Requests[0].Files) != 2 || !tester.HasText("Added and untracked files will be deleted") {
 		t.Fatal("revert confirmation scope missing")
 	}
-	if err := tester.Click("确认Revert 文件"); err != nil {
+	if err := tester.Click("Confirm Revert Files"); err != nil {
 		t.Fatal(err)
 	}
 	if mustGit(t, path, "status", "--porcelain") != "" {
 		t.Fatal(a.output)
 	}
 	oldTree := mustGit(t, path, "rev-parse", "HEAD^{tree}")
-	if err := tester.Click("选择未 Push 仓库 app"); err != nil {
+	if err := tester.Click("Select unpushed repository app"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tester.Click("合并未 Push 提交 app"); err != nil {
+	if err := tester.Click("Squash Unpushed Commits app"); err != nil {
 		t.Fatal(err)
 	}
-	editChangesText(t, tester, "Changes 操作 message", "squashed from Changes")
-	if err := tester.Click("确认合并未 Push 提交"); err != nil {
+	editChangesText(t, tester, "Changes operation message", "squashed from Changes")
+	if err := tester.Click("Confirm Squash Unpushed Commits"); err != nil {
 		t.Fatal(err)
 	}
 	if len(a.outgoing[0].Commits) != 1 || a.outgoing[0].Commits[0].Subject != "squashed from Changes" || mustGit(t, path, "rev-parse", "HEAD^{tree}") != oldTree {
@@ -100,7 +100,7 @@ func TestChangesSplitRevertSquashAndPushUI(t *testing.T) {
 	if err := tester.Click("Push app"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tester.Click("确认Push 分支"); err != nil {
+	if err := tester.Click("Confirm Push Branch"); err != nil {
 		t.Fatal(err)
 	}
 	if len(a.outgoing[0].Commits) != 0 || mustGit(t, remote, "rev-parse", "refs/heads/main") != mustGit(t, path, "rev-parse", "HEAD") {
@@ -114,7 +114,7 @@ func TestChangesCommitPushAndAmendUI(t *testing.T) {
 	writeWorkingFile(t, path, "file.txt", "new\n")
 	a := changesTestClient(t, path)
 	tester := ui.NewTester(a.view, 1560, 940)
-	if err := tester.Click("选择文件 app/file.txt"); err != nil {
+	if err := tester.Click("Select file app/file.txt"); err != nil {
 		t.Fatal(err)
 	}
 	editChangesText(t, tester, "Commit message", "commit and push from Changes")
@@ -124,7 +124,7 @@ func TestChangesCommitPushAndAmendUI(t *testing.T) {
 	if len(a.changesDialog.PushTargets) != 1 || a.changesDialog.PushTargets[0].Remote != "origin" {
 		t.Fatal("push targets missing")
 	}
-	if err := tester.Click("确认Commit & Push"); err != nil {
+	if err := tester.Click("Confirm Commit & Push"); err != nil {
 		t.Fatal(err)
 	}
 	if len(a.workingResults) != 1 || a.workingResults[0].Err != nil || mustGit(t, remote, "rev-parse", "refs/heads/main") != mustGit(t, path, "rev-parse", "HEAD") {
@@ -137,7 +137,7 @@ func TestChangesCommitPushAndAmendUI(t *testing.T) {
 	a.reloadWorkingTrees()
 	tester.Frame()
 	beforeParent := mustGit(t, path, "show", "-s", "--format=%P", "HEAD")
-	if err := tester.Click("选择文件 app/file.txt"); err != nil {
+	if err := tester.Click("Select file app/file.txt"); err != nil {
 		t.Fatal(err)
 	}
 	if err := tester.Click("Amend"); err != nil {
@@ -152,14 +152,14 @@ func TestChangesCommitPushAndAmendUI(t *testing.T) {
 	}
 	source := a.outgoing[0]
 	head := source.Head
-	if err := tester.RightClick("未 Push Commit app/" + shortHash(head)); err != nil {
+	if err := tester.RightClick("Unpushed commit app/" + shortHash(head)); err != nil {
 		t.Fatal(err)
 	}
-	if err := tester.ChooseMenuItem("Amend 最新提交…"); err != nil {
+	if err := tester.ChooseMenuItem("Amend Last Commit…"); err != nil {
 		t.Fatal(err)
 	}
-	editChangesText(t, tester, "Changes 操作 message", "message-only amend")
-	if err := tester.Click("确认Amend 最新提交"); err != nil {
+	editChangesText(t, tester, "Changes operation message", "message-only amend")
+	if err := tester.Click("Confirm Amend Last Commit"); err != nil {
 		t.Fatal(err)
 	}
 	if mustGit(t, path, "show", "-s", "--format=%s", "HEAD") != "message-only amend" || mustGit(t, path, "status", "--porcelain") != "" {
@@ -180,7 +180,7 @@ func TestCommitPushFailureKeepsVerifiedLocalCommit(t *testing.T) {
 	request := requestFor(t, path, "new.txt")
 	a.commitMessage = "commit preserved on rejected push"
 	a.beginWorkingCommit([]CommitRequest{request}, a.commitMessage, []PushTarget{{Source: source, Remote: "origin", Destination: "main"}})
-	if len(a.workingResults) != 1 || a.workingResults[0].Err == nil || !strings.Contains(a.workingResults[0].Err.Error(), "Commit 已成功") {
+	if len(a.workingResults) != 1 || a.workingResults[0].Err == nil || !strings.Contains(a.workingResults[0].Err.Error(), "Commit succeeded") {
 		t.Fatal(a.output)
 	}
 	head := mustGit(t, path, "rev-parse", "HEAD")

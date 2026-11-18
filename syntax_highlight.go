@@ -117,6 +117,22 @@ func codeLineWithNavigation(c *ui.Context, document DiffDocument, line int, base
 			}
 			// Split non-identifiers by syntax boundaries too, so strings/comments keep their colors.
 			part := ui.Text(c.Key(start), text[start:end]).TextColor(color)
+			if navigation != nil && navigation.Client != nil {
+				if caret := navigation.Client.editorCaretAt(navigation.Source, navigation.Version, line+1, start+1); caret != nil {
+					accent := ideaLink
+					part.Focusable().FocusRing(false)
+					drawCaret := part.Focused() || caret.PendingFocus
+					part.Background(ui.Hex("#394b5a")).DrawOver(func(p *ui.Painter, r ui.Rect) {
+						if drawCaret {
+							p.Fill(ui.Rect{X: r.X, Y: r.Y, W: 1, H: r.H}, accent, 0)
+						}
+					})
+					if caret.PendingFocus {
+						part.Focusable().Focus()
+						caret.PendingFocus = false
+					}
+				}
+			}
 			if change, ok := document.Changes[line]; ok && start < change.End && end > change.Start {
 				part.Background(ui.Hex("#66532d"))
 			}
@@ -126,9 +142,20 @@ func codeLineWithNavigation(c *ui.Context, document DiffDocument, line int, base
 				ref, ok = document.Analysis.reference(line, start)
 			}
 			if ok && ref.Column == start+1 && ref.Name == text[start:end] {
-				part.Label(fmt.Sprintf("跳转 %s:%d:%d %s", navigation.Source.Path, line+1, start+1, ref.Name)).Tooltip("Ctrl+点击跳转到定义").HandleInput(func(event ui.InputEvent) bool {
+				hovered := part.Hovered()
+				if definitionModifiers(c.Modifiers(), primaryShortcutModifier()) {
+					part.Cursor(ui.CursorPointer)
+					if hovered {
+						part.TextColor(c.Theme().Accent).Underline()
+					}
+				}
+				part.Label(fmt.Sprintf("Go to %s:%d:%d %s", navigation.Source.Path, line+1, start+1, ref.Name)).Tooltip(definitionClickHint()).HandleInput(func(event ui.InputEvent) bool {
+					// Capture only the navigation gesture; ordinary text selection and Copy stay native.
 					if isDefinitionPress(event) {
-						navigation.Client.navigateSymbol(navigation.Source, document, ref)
+						return true
+					}
+					if event.Kind == ui.InputPointerUp && event.Button == 0 && !event.Canceled && hovered && definitionModifiers(event.Mods, primaryShortcutModifier()) {
+						navigation.Client.navigateSymbolAt(navigation.Source, document, ref, navigation.Version)
 						return true
 					}
 					return false
@@ -139,5 +166,17 @@ func codeLineWithNavigation(c *ui.Context, document DiffDocument, line int, base
 }
 
 func isDefinitionPress(event ui.InputEvent) bool {
-	return event.Kind == ui.InputPointerDown && event.Mods&ui.Ctrl != 0 && (event.Button == 0 || event.Button == 1)
+	return event.Kind == ui.InputPointerDown && event.Button == 0 && definitionModifiers(event.Mods, primaryShortcutModifier())
+}
+
+// Additional modifiers belong to selection and alternate IDE gestures, not definition navigation.
+func definitionModifiers(mods, primary ui.Modifiers) bool {
+	return mods&(ui.Ctrl|ui.Super|ui.Alt|ui.Shift) == primary
+}
+
+func definitionClickHint() string {
+	if primaryShortcutModifier() == ui.Super {
+		return "⌘+Click to Go to Definition"
+	}
+	return "Ctrl+Click to Go to Definition"
 }

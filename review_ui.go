@@ -49,30 +49,42 @@ func (s *reviewState) moveHunk(direction int, total int) {
 func reviewComparison(c *ui.Context, f FileComparison, beforeTitle, afterTitle string, clients ...*client) {
 	var beforeNav, afterNav CodeNavigation
 	if len(clients) > 0 {
-		beforeNav = CodeNavigation{Client: clients[0], Source: f.BeforeSource}
-		afterNav = CodeNavigation{Client: clients[0], Source: f.AfterSource}
+		beforeNav = CodeNavigation{Client: clients[0], Source: f.BeforeSource, Version: f.Version}
+		afterNav = CodeNavigation{Client: clients[0], Source: f.AfterSource, Version: f.Version}
 	}
 	container := ui.Column(c).Grow(1).MinHeight(0)
-	state := ui.Local(container, f.Version, func() reviewState { return newReviewState(f) })
+	var state *reviewState
 	if len(clients) > 0 {
-		state.SideBySide = clients[0].diffSideBySide
+		state = clients[0].editorReviewState(f)
+	}
+	if state == nil {
+		state = ui.Local(container, f.Version, func() reviewState { return newReviewState(f) })
+		if len(clients) > 0 {
+			state.SideBySide = clients[0].diffSideBySide
+		}
 	}
 	container.Children(func() {
 		ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
-			toggle := "完整文件"
+			toggle := "Full File"
 			if state.Full {
-				toggle = "变更块"
+				toggle = "Hunk"
 			}
 			inline := ui.Button(c.Key("inline-mode"), "Inline").Selected(!state.SideBySide).OnClick(func() {
 				state.SideBySide = false
 				if len(clients) > 0 {
 					clients[0].diffSideBySide = false
+					if tab := clients[0].activeEditor(); tab != nil {
+						tab.SideBySide = false
+					}
 				}
 			})
 			side := ui.Button(c.Key("side-by-side-mode"), "Side-by-side").Selected(state.SideBySide).OnClick(func() {
 				state.SideBySide = true
 				if len(clients) > 0 {
 					clients[0].diffSideBySide = true
+					if tab := clients[0].activeEditor(); tab != nil {
+						tab.SideBySide = true
+					}
 				}
 			})
 			if state.SideBySide {
@@ -81,19 +93,19 @@ func reviewComparison(c *ui.Context, f FileComparison, beforeTitle, afterTitle s
 				inline.Background(c.Theme().Accent).TextColor(c.Theme().AccentText)
 			}
 
-			ui.Button(c.Key("diff-mode"), toggle).Label("切换 diff 模式").OnClick(func() { state.Full = !state.Full; state.rebuildRows(f) })
+			ui.Button(c.Key("diff-mode"), toggle).Label("Switch Diff Mode").OnClick(func() { state.Full = !state.Full; state.rebuildRows(f) })
 			language := f.AfterDocument.Language
 			if language == "" {
 				language = f.BeforeDocument.Language
 			}
 			if language == "" {
-				language = "纯文本"
+				language = "Plain Text"
 			}
 			ui.Text(c, language).FontSize(11).TextColor(c.Theme().TextMuted)
 			ui.Spacer(c)
-			ui.Button(c.Key("previous-hunk"), "上一变更块").Disabled(state.Hunk <= 0 || f.ReviewHunks == 0).Tooltip("Shift+F7").OnClick(func() { state.moveHunk(-1, f.ReviewHunks) })
+			ui.Button(c.Key("previous-hunk"), "Previous Hunk").Disabled(state.Hunk <= 0 || f.ReviewHunks == 0).Tooltip("Shift+F7").OnClick(func() { state.moveHunk(-1, f.ReviewHunks) })
 			ui.Textf(c, "%d / %d", min(state.Hunk+1, f.ReviewHunks), f.ReviewHunks).FontSize(11)
-			ui.Button(c.Key("next-hunk"), "下一变更块").Disabled(state.Hunk+1 >= f.ReviewHunks).Tooltip("F7").OnClick(func() { state.moveHunk(1, f.ReviewHunks) })
+			ui.Button(c.Key("next-hunk"), "Next Hunk").Disabled(state.Hunk+1 >= f.ReviewHunks).Tooltip("F7").OnClick(func() { state.moveHunk(1, f.ReviewHunks) })
 		})
 		container.OnShortcut(0, ui.KeyF7, func() { state.moveHunk(1, f.ReviewHunks) }).OnShortcut(ui.Shift, ui.KeyF7, func() { state.moveHunk(-1, f.ReviewHunks) })
 		if state.SideBySide {
@@ -102,7 +114,7 @@ func reviewComparison(c *ui.Context, f FileComparison, beforeTitle, afterTitle s
 		}
 		ui.Text(c, beforeTitle+" → "+afterTitle).FontSize(11).TextColor(c.Theme().TextMuted)
 		if f.ReviewHunks == 0 && !state.Full {
-			ui.Text(c, "无文本变更（可能仅文件名、权限或换行结尾变化）").TextColor(c.Theme().TextMuted)
+			ui.Text(c, "No text changes (filename, permissions, or line endings may have changed)").TextColor(c.Theme().TextMuted)
 			return
 		}
 
@@ -116,7 +128,7 @@ func reviewComparison(c *ui.Context, f FileComparison, beforeTitle, afterTitle s
 						break
 					}
 				}
-				ui.Button(item.Context, fmt.Sprintf("展开 %d 行未修改内容", row.OldEnd-row.OldLine)).Height(25).OnClick(func() { state.Expanded[source] = true; state.rebuildRows(f) })
+				ui.Button(item.Context, fmt.Sprintf("Expand %d Unchanged Lines", row.OldEnd-row.OldLine)).Height(25).OnClick(func() { state.Expanded[source] = true; state.rebuildRows(f) })
 				return
 			}
 			if row.Kind == 'h' {
@@ -145,7 +157,7 @@ func reviewComparison(c *ui.Context, f FileComparison, beforeTitle, afterTitle s
 				if row.Kind == '-' || row.Kind == '+' {
 					base = diffCodeColor(c)
 				}
-				if row.Kind == '-' {
+				if row.Kind == '-' || (row.Kind != '+' && len(clients) > 0 && clients[0].editorCaretLine(f.BeforeSource, f.Version, row.OldLine+1)) {
 					codeLineWithNavigation(c, f.BeforeDocument, row.OldLine, base, &beforeNav)
 				} else {
 					codeLineWithNavigation(c, f.AfterDocument, row.NewLine, base, &afterNav)
@@ -214,7 +226,17 @@ func (a *client) moveReviewFile(direction int) {
 		for _, tree := range a.workingReviewTrees() {
 			files := orderedWorkingFiles(tree.Files)
 			if next < offset+len(files) {
-				a.selectWorkingFile(tree, files[next-offset])
+				if current := a.activeEditor(); current != nil {
+					if current.Kind == "file" {
+						a.selectWorkingFileView(tree, files[next-offset], true)
+					} else if current.Mode == "index" || current.Mode == "worktree" {
+						a.openScopedChange(tree, files[next-offset], current.Mode)
+					} else {
+						a.selectWorkingFileView(tree, files[next-offset], false)
+					}
+				} else {
+					a.selectWorkingFile(tree, files[next-offset])
+				}
 				return
 			}
 			offset += len(files)
@@ -228,20 +250,20 @@ func (a *client) moveReviewFile(direction int) {
 func (a *client) reviewFileNavigation(c *ui.Context) {
 	index, total := a.reviewFilePosition()
 	ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
-		ui.Button(c.Key("previous-review-file"), "上一文件").Disabled(index <= 0).Tooltip("Shift+F8").OnClick(func() { a.moveReviewFile(-1) })
-		ui.Textf(c, "文件 %d / %d", index+1, total).FontSize(11)
+		ui.Button(c.Key("previous-review-file"), "Previous File").Disabled(index <= 0).Tooltip("Shift+F8").OnClick(func() { a.moveReviewFile(-1) })
+		ui.Textf(c, "File %d / %d", index+1, total).FontSize(11)
 		if a.review.Open {
 			for _, item := range a.review.Items {
 				if item.File.Key() == a.selectedFile {
-					label := "标记已读"
+					label := "Mark as Reviewed"
 					if a.isReviewed(item) {
-						label = "标记未读"
+						label = "Mark as Unreviewed"
 					}
 					ui.Button(c.Key("review-mark-current"), label).Disabled(item.Fingerprint == "").OnClick(func() { a.toggleReviewMark(item) })
 				}
 			}
 		}
-		ui.Button(c.Key("next-review-file"), "下一文件").Disabled(index < 0 || index+1 >= total).Tooltip("F8").OnClick(func() { a.moveReviewFile(1) })
+		ui.Button(c.Key("next-review-file"), "Next File").Disabled(index < 0 || index+1 >= total).Tooltip("F8").OnClick(func() { a.moveReviewFile(1) })
 	})
 	c.OnWindowShortcut(0, ui.KeyF8, func() { a.moveReviewFile(1) })
 	c.OnWindowShortcut(ui.Shift, ui.KeyF8, func() { a.moveReviewFile(-1) })

@@ -9,6 +9,7 @@ import (
 )
 
 func (a *client) beginReview(request ReviewRequest) {
+	a.openReviewEditor(request)
 	request.Repositories = append([]Repository(nil), request.Repositories...)
 	request.Commits = append([]Commit(nil), request.Commits...)
 	a.initializeCompare(request)
@@ -24,6 +25,7 @@ func (a *client) beginReview(request ReviewRequest) {
 	a.review.Scope = reviewScope(request)
 	a.review.Error = ""
 	a.review.Items = nil
+	a.saveEditorContext()
 	compareLimit := a.compare.Limit
 	a.startRead("review", func(ctx context.Context) func() {
 		snapshot := pinCompareEndpoints(ctx, request)
@@ -44,6 +46,7 @@ func (a *client) beginReview(request ReviewRequest) {
 			a.review.Items = items
 			a.review.Summary = summary
 			a.review.Error = problem
+			a.saveEditorContext()
 			changed := false
 			for _, item := range items {
 				key := a.reviewMarkKey(item)
@@ -129,6 +132,14 @@ func (a *client) reviewVisibleItems() []ReviewItem {
 	return out
 }
 func (a *client) selectReviewItem(item ReviewItem) {
+	parent := a.editorActive
+	if current := a.activeEditor(); current != nil && current.Parent != "" {
+		parent = current.Parent
+	}
+	editor := a.openCommitEditor(item.File, parent)
+	editor.setParts(item.Parts)
+	editor.Loading = false
+	a.refreshEditorPreview(editor.ID)
 	a.clearWorkingComparison()
 	a.clearComparison()
 	a.selectedFile = item.File.Key()
@@ -173,7 +184,7 @@ func (a *client) persistReviewMarks() {
 		a.reviewSaveMu.Unlock()
 		return func() {
 			if err != nil {
-				a.review.Error = "保存审查进度失败：" + err.Error()
+				a.review.Error = "Failed to save review progress: " + err.Error()
 			}
 		}
 	})

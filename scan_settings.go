@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -109,39 +108,56 @@ func (a *client) scanSettingsPanel(c *ui.Context) {
 		return
 	}
 	ui.Modal(c.Key("scan-settings"), &a.settings.Open, func() {
-		ui.Column(c).Width(720).MaxHeight(620).Gap(12).Children(func() {
-			ui.Text(c, "设置 · 扫描文件夹").FontSize(18).Bold()
-			ui.Text(c, "可以添加 Git 仓库本身或父文件夹。所选文件夹为第 0 层，最多向下扫描 3 层；找到仓库后停止深入，不扫描其内部仓库。").FontSize(12)
-			ui.Row(c).Gap(8).Children(func() {
-				ui.TextInput(c.Key("scan-folder-path"), &a.settings.Path).Grow(1).MinWidth(0).Placeholder("Git 项目或父文件夹路径").Label("扫描文件夹路径").Disabled(a.busy)
-				ui.Button(c, "添加文件夹").Disabled(a.busy || strings.TrimSpace(a.settings.Path) == "").OnClick(func() { a.appendScanFolders([]string{a.settings.Path}) })
-				ui.Button(c, "选择文件夹…").Disabled(a.busy).OnClick(func() {
-					paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: a.win, Title: "选择扫描文件夹（可多选）", Directory: true, Multiple: true})
-					if err != nil {
-						a.settings.Error = err.Error()
-					} else {
-						a.appendScanFolders(paths)
+		ui.Column(c).Width(920).Height(600).Gap(0).Background(ideaPanel).Children(func() {
+			ui.Text(c, "Settings").Height(36).Padding(8, 12).FontSize(14).Bold()
+			ui.Row(c).Grow(1).MinHeight(0).Gap(1).Background(ideaBorder).Children(func() {
+				ui.Column(c).Width(205).FillHeight().Padding(8, 0).Gap(2).Background(ideaEditor).Children(func() {
+					ui.Text(c, "Version Control").Padding(6, 12).FontSize(12).Bold()
+					ui.Text(c, "Git").Padding(6, 28).FillWidth().Background(ideaSelection).TextColor(c.Theme().AccentText).FontSize(12)
+				})
+				ui.Column(c).Grow(1).MinWidth(0).FillHeight().Padding(16).Gap(12).Background(ideaPanel).Children(func() {
+					ui.Text(c, "Version Control  ›  Git").FontSize(15).Bold()
+					ui.Text(c, "Scan Roots").FontSize(12).Bold()
+					ui.Text(c, "Add Git repositories or parent directories to manage.").FontSize(12).TextColor(c.Theme().TextMuted)
+					ui.Row(c).Gap(6).Children(func() {
+						ui.TextInput(c.Key("scan-folder-path"), &a.settings.Path).Grow(1).MinWidth(0).Placeholder("Git repository or parent directory path").Label("Scan root path").Disabled(a.busy)
+						ui.Button(c, "Add").Label("Add Directory").Disabled(a.busy || strings.TrimSpace(a.settings.Path) == "").OnClick(func() { a.appendScanFolders([]string{a.settings.Path}) })
+						ui.Button(c, "Browse…").Label("Choose Directory…").Disabled(a.busy).OnClick(func() {
+							paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: a.win, Title: "Select Scan Roots (multiple selection)", Directory: true, Multiple: true})
+							if err != nil {
+								a.settings.Error = err.Error()
+							} else {
+								a.appendScanFolders(paths)
+							}
+						})
+					})
+					ui.Column(c).Grow(1).MinHeight(0).Gap(1).Padding(1).Background(ideaBorder).Children(func() {
+						ui.Text(c, "Directory").Height(28).Padding(6, 8).FillWidth().Background(ideaToolbar).FontSize(11).Bold()
+						ui.Scroll(c).Grow(1).FillWidth().Padding(2).Gap(1).Background(ideaEditor).Children(func() {
+							if len(a.settings.Folders) == 0 {
+								ui.Text(c, "No scan roots configured").Padding(12).TextColor(c.Theme().TextMuted)
+							}
+							for i, path := range a.settings.Folders {
+								ui.Row(c.Key(path)).Height(30).Padding(2, 6).Gap(8).AlignItems(ui.Center).Children(func() {
+									ui.Text(c, path).Grow(1).MinWidth(0).SingleLine().Ellipsis("…").Tooltip(path).FontSize(12)
+									ui.Button(c, "−").Width(24).Height(24).Label("Remove scan root " + path).Tooltip("Remove Scan Root").Disabled(a.busy).OnClick(func() { a.settings.Folders = append(a.settings.Folders[:i], a.settings.Folders[i+1:]...) })
+								})
+							}
+						})
+					})
+					ui.Text(c, "Scan depth: 3 levels. Stop at Git repositories. Directory symlinks are not followed.").FontSize(11).TextColor(c.Theme().TextMuted)
+					ui.Text(c, "Repositories outside these roots are removed from the list. Files on disk are preserved.").FontSize(11).TextColor(c.Theme().TextMuted)
+					if a.settings.Error != "" {
+						ui.Text(c, a.settings.Error).FontSize(12).TextColor(statusOrange)
 					}
 				})
 			})
-			ui.Scroll(c).MaxHeight(300).Gap(6).Children(func() {
-				if len(a.settings.Folders) == 0 {
-					ui.Text(c, "尚未添加扫描文件夹").TextColor(c.Theme().TextMuted)
-				}
-				for i, path := range a.settings.Folders {
-					ui.Row(c.Key(path)).Gap(8).AlignItems(ui.Center).Children(func() {
-						ui.Text(c, path).Grow(1).MinWidth(0).SingleLine().Ellipsis("…").Tooltip(path)
-						ui.Button(c, "移除").Label("移除扫描文件夹 " + path).Disabled(a.busy).OnClick(func() { a.settings.Folders = append(a.settings.Folders[:i], a.settings.Folders[i+1:]...) })
-					})
-				}
-			})
-			if a.settings.Error != "" {
-				ui.Text(c, a.settings.Error).FontSize(12)
-			}
-			ui.Text(c, "保存后立即扫描，启动时自动扫描。移除扫描文件夹后，已添加的仓库仍保留。扫描不会跟随子目录符号链接。").FontSize(11).TextColor(c.Theme().TextMuted)
-			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
-				ui.Button(c, "取消").Disabled(a.busy).OnClick(func() { a.settings.Open = false })
-				ui.PrimaryButton(c, fmt.Sprintf("保存并扫描 (%d)", len(a.settings.Folders))).Label("保存并扫描").Disabled(a.busy).OnClick(func() { a.scanFoldersJob(a.settings.Folders, true) })
+			ui.Row(c).Height(48).Padding(10, 12).Gap(8).AlignItems(ui.Center).Children(func() {
+				ui.Textf(c, "%d scan roots", len(a.settings.Folders)).FontSize(11).TextColor(c.Theme().TextMuted)
+				ui.Spacer(c)
+				ui.Button(c, "Cancel").Width(80).Disabled(a.busy).OnClick(func() { a.settings.Open = false })
+				ui.Button(c, "Apply").Width(80).Disabled(a.busy).Tooltip("Save and rescan repositories").OnClick(func() { a.scanFoldersJobOptions(a.settings.Folders, true, false) })
+				ui.PrimaryButton(c, "OK").Width(80).Disabled(a.busy).Tooltip("Save and rescan repositories").OnClick(func() { a.scanFoldersJob(a.settings.Folders, true) })
 			})
 		})
 	})

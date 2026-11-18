@@ -19,11 +19,11 @@ func readRewriteCommit(path, hash string) (rewriteCommit, error) {
 	}
 	fields := strings.SplitN(string(raw), "\x00", 6)
 	if len(fields) != 6 {
-		return result, fmt.Errorf("无法读取提交元数据")
+		return result, fmt.Errorf("Cannot read commit metadata")
 	}
 	parents := strings.Fields(fields[1])
 	if len(parents) > 1 {
-		return result, fmt.Errorf("暂不合并包含 merge commit 的历史")
+		return result, fmt.Errorf("Squashing history containing merge commits is not supported")
 	}
 	result.Tree = fields[0]
 	if len(parents) == 1 {
@@ -38,14 +38,14 @@ func readRewriteCommit(path, hash string) (rewriteCommit, error) {
 func squashOutgoing(source Outgoing, selected []Commit, message string) (string, error) {
 	path := source.Repository.Path
 	if len(selected) < 2 || strings.TrimSpace(message) == "" {
-		return "", fmt.Errorf("至少选择两个未 Push 提交并填写 message")
+		return "", fmt.Errorf("Select at least two unpushed commits and enter a message")
 	}
 	head, ref := currentPosition(path)
 	if head != source.Head || ref != source.Ref || ref == "" {
-		return "", fmt.Errorf("HEAD 或分支已变化，或处于 detached HEAD；请刷新")
+		return "", fmt.Errorf("HEAD or branch changed, or HEAD is detached. Refresh to continue")
 	}
 	if operationInProgress(path) {
-		return "", fmt.Errorf("存在未完成的 Git 操作")
+		return "", fmt.Errorf("Git operation in progress")
 	}
 	clean := func() error {
 		status, err := git(path, "status", "--porcelain")
@@ -53,7 +53,7 @@ func squashOutgoing(source Outgoing, selected []Commit, message string) (string,
 			return err
 		}
 		if status != "" {
-			return fmt.Errorf("合并提交需要干净工作区；暂存及未提交变更不会自动丢弃")
+			return fmt.Errorf("Squash requires a clean working tree. Staged and uncommitted changes are preserved")
 		}
 		return nil
 	}
@@ -71,12 +71,12 @@ func squashOutgoing(source Outgoing, selected []Commit, message string) (string,
 	chosen := map[string]bool{}
 	for _, c := range selected {
 		if c.Repository.Path != path || !outgoing[c.Hash] {
-			return "", fmt.Errorf("只能合并同一仓库的未 Push 提交")
+			return "", fmt.Errorf("Only unpushed commits in the same repository can be squashed")
 		}
 		chosen[c.Hash] = true
 	}
 	if len(chosen) < 2 {
-		return "", fmt.Errorf("至少选择两个不同提交")
+		return "", fmt.Errorf("Select at least two different commits")
 	}
 	chain, err := git(path, "rev-list", "--first-parent", "--reverse", head, "--")
 	if err != nil {
@@ -94,12 +94,12 @@ func squashOutgoing(source Outgoing, selected []Commit, message string) (string,
 		}
 	}
 	if found != len(chosen) {
-		return "", fmt.Errorf("所选提交不在当前分支的线性历史上")
+		return "", fmt.Errorf("Selected commits are not in the current branch's linear history")
 	}
 	var plan []rewriteCommit
 	for _, hash := range hashes[first:] {
 		if !outgoing[hash] {
-			return "", fmt.Errorf("重写范围包含已 Push 提交")
+			return "", fmt.Errorf("Rewrite range contains published commits")
 		}
 		if err := requireUnpublished(path, hash); err != nil {
 			return "", err
@@ -153,7 +153,7 @@ func squashOutgoing(source Outgoing, selected []Commit, message string) (string,
 			return err
 		}
 		if _, err = run("apply", "--cached", "--3way", "--allow-empty", "--whitespace=nowarn", file); err != nil {
-			return fmt.Errorf("重排提交产生冲突；原分支、暂存区及文件未改动：%w", err)
+			return fmt.Errorf("Conflict while replaying commits; original branch, index, and files unchanged: %w", err)
 		}
 		return nil
 	}
@@ -169,7 +169,7 @@ func squashOutgoing(source Outgoing, selected []Commit, message string) (string,
 		return "", err
 	}
 	if _, err = run("hook", "run", "--ignore-missing", "commit-msg", "--", msgFile); err != nil {
-		return "", fmt.Errorf("commit-msg hook 拒绝合并：%w", err)
+		return "", fmt.Errorf("commit-msg hook rejected squash: %w", err)
 	}
 	checkedMessage, err := os.ReadFile(msgFile)
 	if err != nil {
@@ -199,7 +199,7 @@ func squashOutgoing(source Outgoing, selected []Commit, message string) (string,
 		hash := strings.TrimSpace(string(out))
 		actual, err := readRewriteCommit(path, hash)
 		if err != nil || actual.Tree != tree || actual.Parent != parent || actual.Message != strings.TrimRight(message, "\n") {
-			return "", fmt.Errorf("无法核对重写的提交")
+			return "", fmt.Errorf("Cannot verify rewritten commit")
 		}
 		return hash, nil
 	}
@@ -221,17 +221,17 @@ func squashOutgoing(source Outgoing, selected []Commit, message string) (string,
 	}
 	final, err := readRewriteCommit(path, next)
 	if err != nil || final.Tree != original.Tree {
-		return "", fmt.Errorf("重排后的最终文件树与原 HEAD 不一致；原分支未改动")
+		return "", fmt.Errorf("Rewritten tree differs from the original HEAD; original branch unchanged")
 	}
 	if err = clean(); err != nil {
 		return "", err
 	}
 	now, currentRef := currentPosition(path)
 	if now != head || currentRef != ref {
-		return "", fmt.Errorf("合并期间分支已变化；未更新原分支")
+		return "", fmt.Errorf("Branch changed during squash; the original branch was not updated")
 	}
 	if out, err := git(path, "update-ref", "-m", "mygo-git: squash unpublished commits", ref, next, head); err != nil {
 		return out, err
 	}
-	return fmt.Sprintf("已合并 %d 个提交为 %s\n原 HEAD: %s\n新 HEAD: %s\n最终文件树保持不变；可通过分支 reflog 找回原历史", len(chosen), squashed, head, next), nil
+	return fmt.Sprintf("Squashed %d commits into %s\nOriginal HEAD: %s\nNew HEAD: %s\nFinal tree unchanged; recover the original history through the branch reflog", len(chosen), squashed, head, next), nil
 }

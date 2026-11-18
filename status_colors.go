@@ -38,12 +38,12 @@ func readPushStatusContext(ctx context.Context, repo *Repository) {
 	}
 	count, err := gitContext(ctx, repo.Path, args...)
 	if err != nil {
-		repo.PushError = "无法读取未 Push 状态：" + err.Error()
+		repo.PushError = "Cannot read unpushed status: " + err.Error()
 		return
 	}
 	repo.Ahead, err = strconv.Atoi(count)
 	if err != nil {
-		repo.PushError = "无法解析未 Push 数量"
+		repo.PushError = "Cannot parse unpushed commit count"
 	}
 }
 func repositoryStateColor(repo Repository, normal ui.Color) ui.Color {
@@ -56,21 +56,21 @@ func repositoryStateColor(repo Repository, normal ui.Color) ui.Color {
 	return normal
 }
 func repositoryStateTooltip(repo Repository) string {
-	text := repo.Path + "\n当前分支：" + repo.Branch
+	text := repo.Path + "\nCurrent branch: " + repo.Branch
 	if repo.Status != "" {
-		text += "\n有未提交变更"
+		text += "\nUncommitted changes"
 	} else {
-		text += "\n工作区干净"
+		text += "\nWorking tree clean"
 	}
 	if repo.PushError != "" {
 		return text + "\n" + repo.PushError
 	}
 	if repo.PushBase != "" {
-		text += "\n相对 " + repo.PushBase
+		text += "\nCompared with " + repo.PushBase
 	} else {
-		text += "\n未配置可用推送/上游引用，与全部远程跟踪引用比较"
+		text += "\nNo push or upstream ref configured; comparing against all remote-tracking refs"
 	}
-	return text + "\n未 Push：" + strconv.Itoa(repo.Ahead) + " 个提交（基于本地引用，Fetch 后更新）"
+	return text + "\nUnpushed: " + strconv.Itoa(repo.Ahead) + " commits (based on local refs; Fetch to update)"
 }
 func workingChangeKind(file WorkingFile) string {
 	if file.Change != "" && !file.Conflicted() {

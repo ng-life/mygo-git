@@ -84,6 +84,8 @@ func (a *client) selectReference(key, name, kind string) {
 	a.selectReferenceHistory(key, name, kind)
 }
 func (a *client) selectReferenceHistory(key, name, kind string) {
+	a.saveEditorContext()
+	defer a.restoreEditorContext()
 	if a.review.Open {
 		a.closeReview()
 	}
@@ -101,7 +103,7 @@ func (a *client) selectReferenceHistory(key, name, kind string) {
 }
 func (a *client) logsNavigation(c *ui.Context) {
 	ui.Column(c).Fill().Padding(5, 4).Gap(4).Children(func() {
-		ui.TextInput(c.Key("logs-search"), &a.logsQuery).Bind(&a.logsSearchHandle).Label("搜索分支或 Tag").Placeholder("Branch or tag")
+		ui.TextInput(c.Key("logs-search"), &a.logsQuery).Bind(&a.logsSearchHandle).Label("Search Branches or Tags").Placeholder("Branch or tag")
 		ui.Scroll(c).Grow(1).Children(func() {
 			head := ReferenceChoice{Kind: "head"}
 			ui.Tree(c.Key("head-tree"), func() {
@@ -115,16 +117,16 @@ func (a *client) logsNavigation(c *ui.Context) {
 					open := a.referenceOpen("logs-section:" + section.kind)
 					item := treeContentAction(ui.TreeItem(c.Key("section"), section.title, open, func() {
 						if len(root.Children) == 0 {
-							ui.Text(c, "无匹配引用").FontSize(11).TextColor(c.Theme().TextMuted)
+							ui.Text(c, "No matching refs").FontSize(11).TextColor(c.Theme().TextMuted)
 						}
 						a.referenceNodes(c, root, section.kind)
 					}).Label(section.title), nil, func() { *open = !*open })
 					if section.kind == "tags" {
 						item.ContextMenu(func(menu *ui.Menu) {
-							if menu.Item("Fetch Tags · 获取远程 Tags").Disabled(a.busy || len(a.repos) == 0).Chosen() {
+							if menu.Item("Fetch Tags · Remote Tags").Disabled(a.busy || len(a.repos) == 0).Chosen() {
 								a.fetchTags(a.repos)
 							}
-							if menu.Item("新建 Tag…").Disabled(a.busy || len(a.repos) == 0).Chosen() {
+							if menu.Item("New Tag…").Disabled(a.busy || len(a.repos) == 0).Chosen() {
 								a.openTagDialog("create", "", a.repos)
 							}
 						})
@@ -132,10 +134,10 @@ func (a *client) logsNavigation(c *ui.Context) {
 				})
 			}
 		})
-		ui.Textf(c, "已选 %d 个引用 · Ctrl / ⌘ 多选 · Shift 连选", len(a.refSelection)).FontSize(10).TextColor(c.Theme().TextMuted)
+		ui.Textf(c, "%d refs selected · Ctrl / ⌘ to toggle · Shift for range", len(a.refSelection)).FontSize(10).TextColor(c.Theme().TextMuted)
 		ui.Row(c).Gap(6).Children(func() {
-			ui.Button(c, "获取 Tags").Disabled(a.busy || len(a.repos) == 0).OnClick(func() { a.fetchTags(a.repos) })
-			ui.Button(c, "新建 Tag…").Grow(1).Disabled(a.busy || len(a.repos) == 0).OnClick(func() { a.openTagDialog("create", "", a.visible()) })
+			ui.Button(c, "Fetch Tags").Disabled(a.busy || len(a.repos) == 0).OnClick(func() { a.fetchTags(a.repos) })
+			ui.Button(c, "New Tag…").Grow(1).Disabled(a.busy || len(a.repos) == 0).OnClick(func() { a.openTagDialog("create", "", a.visible()) })
 		})
 	})
 }
@@ -163,6 +165,10 @@ func (a *client) referenceNodes(c *ui.Context, node *TreeNode, kind string) {
 		if len(names) > 0 {
 			display += " · " + strings.Join(names, ", ")
 		}
+		current := kind == "local" && currentLocalBranch(child.Branch, targets)
+		if current {
+			display += " · Current"
+		}
 		selected := a.group == child.Key && a.groupRemote == (kind == "remote") && a.groupTags == (kind == "tags")
 		var toggle func()
 		if open != nil {
@@ -172,7 +178,10 @@ func (a *client) referenceNodes(c *ui.Context, node *TreeNode, kind string) {
 		if child.Branch != "" {
 			selected = a.referenceSelected(choice)
 		}
-		row := ui.TreeItem(c.Key(kind+child.Key), display, open, children).Label(accessible).Selected(selected).Tooltip(strings.Join(names, "\n"))
+		row := referenceTreeItem(c.Key(kind+child.Key), display, open, children).Label(accessible).Selected(selected).Tooltip(strings.Join(names, "\n"))
+		if current && !selected {
+			row.Background(ui.Hex("#344653"))
+		}
 		mods := row.ClickModifiers()
 		item := treeContentAction(row, func() {
 			if child.Branch != "" {

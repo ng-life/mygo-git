@@ -22,7 +22,7 @@ func (f MergedFile) Status() string {
 	if len(f.Changes) == 1 {
 		return f.Changes[0].File.Status
 	}
-	return fmt.Sprintf("%d 次", len(f.Changes))
+	return fmt.Sprintf("%d attempts", len(f.Changes))
 }
 
 type CommitComparison struct {

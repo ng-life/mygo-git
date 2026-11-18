@@ -53,7 +53,7 @@ for pid in old:
         os.kill(pid, signal.SIGTERM)
     except ProcessLookupError:
         pass
-for _ in range(100):
+for _ in range(600):
     if not app_pids(processes()):
         break
     time.sleep(0.1)

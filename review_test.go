@@ -27,32 +27,32 @@ func TestWorkingHierarchySelectionAndDisclosure(t *testing.T) {
 			t.Fatal("missing tree node", label)
 		}
 	}
-	if err := tester.Click("选择文件夹 supplychain/src/nested"); err != nil {
+	if err := tester.Click("Select directory supplychain/src/nested"); err != nil {
 		t.Fatal(err)
 	}
 	tree := a.workingTrees[0]
 	if a.workingCheckState(path, tree.Files) != ui.CheckMixed || !a.workingSelection[workingFileKey(path, "src/nested/b.go")] || a.workingSelection[workingFileKey(path, "src/a.go")] {
 		t.Fatal("nested selection did not propagate")
 	}
-	if err := tester.Click("选择文件夹 supplychain/src"); err != nil {
+	if err := tester.Click("Select directory supplychain/src"); err != nil {
 		t.Fatal(err)
 	}
 	if !a.workingSelection[workingFileKey(path, "src/a.go")] {
 		t.Fatal("mixed folder click must select descendants")
 	}
-	if err := tester.Click("选择文件夹 supplychain/src"); err != nil {
+	if err := tester.Click("Select directory supplychain/src"); err != nil {
 		t.Fatal(err)
 	}
 	if a.workingSelection[workingFileKey(path, "src/nested/b.go")] {
 		t.Fatal("folder deselection failed")
 	}
-	if err := tester.Click("展开或折叠 src"); err != nil {
+	if err := tester.Click("Expand or collapse src"); err != nil {
 		t.Fatal(err)
 	}
 	if tester.HasText("a.go") || tester.HasText("b.go") {
 		t.Fatal("folder not collapsed")
 	}
-	if err := tester.Click("展开或折叠 src"); err != nil {
+	if err := tester.Click("Expand or collapse src"); err != nil {
 		t.Fatal(err)
 	}
 	if !tester.HasText("b.go") {
@@ -95,7 +95,7 @@ func TestReviewHunksContextExpansionAndNavigation(t *testing.T) {
 	if tester.HasText("// unchanged line 30") || !tester.HasText("func first() string { return \"one\" }") {
 		t.Fatal("incorrect first hunk view", tester.Texts())
 	}
-	if err := tester.Click("下一变更块"); err != nil {
+	if err := tester.Click("Next Hunk"); err != nil {
 		t.Fatal(err)
 	}
 	if !tester.HasText("2 / 2") || !tester.HasText("func second() int { return 42 }") {
@@ -106,19 +106,19 @@ func TestReviewHunksContextExpansionAndNavigation(t *testing.T) {
 		t.Fatal("previous hunk shortcut failed")
 	}
 	tester.Scroll(300, 220, 0, -100000)
-	if err := tester.Click("展开 6 行未修改内容"); err != nil {
+	if err := tester.Click("Expand 6 Unchanged Lines"); err != nil {
 		t.Fatal(err)
 	}
 	if !tester.HasText("// unchanged line 1") {
 		t.Fatal("fold expansion did not reveal context")
 	}
-	if err := tester.Click("切换 diff 模式"); err != nil {
+	if err := tester.Click("Switch Diff Mode"); err != nil {
 		t.Fatal(err)
 	}
-	if !tester.HasText("变更块") {
+	if !tester.HasText("Hunk") {
 		t.Fatal("full-file mode not entered")
 	}
-	if err := tester.Click("切换 diff 模式"); err != nil {
+	if err := tester.Click("Switch Diff Mode"); err != nil {
 		t.Fatal(err)
 	}
 	tester.Frame()
@@ -140,7 +140,7 @@ func TestReviewFileNavigationAcrossRepositoriesAndBinary(t *testing.T) {
 	first := a.workingTrees[0]
 	a.selectWorkingFile(first, first.Files[0])
 	tester := ui.NewTester(a.view, 1560, 940)
-	if err := tester.Click("下一文件"); err != nil {
+	if err := tester.Click("Next File"); err != nil {
 		t.Fatal(err)
 	}
 	if a.workingFileTree.Repository.Path != a.workingTrees[1].Repository.Path {
@@ -150,9 +150,9 @@ func TestReviewFileNavigationAcrossRepositoriesAndBinary(t *testing.T) {
 	if a.workingFileTree.Repository.Path != first.Repository.Path {
 		t.Fatal("previous file shortcut failed")
 	}
-	a.workingComparison.Notice = "二进制文件"
+	a.workingComparison.Notice = "Binary file"
 	tester.Frame()
-	if err := tester.Click("下一文件"); err != nil {
+	if err := tester.Click("Next File"); err != nil {
 		t.Fatal("binary file traps review navigation", err)
 	}
 	tester.Key(ui.Shift, ui.KeyF8)

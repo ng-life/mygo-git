@@ -51,11 +51,11 @@ func (a *client) setWorkingCollapsed(collapsed bool) {
 func (a *client) workingChangeSummary(c *ui.Context) {
 	counts := countWorkingChanges(a.workingTrees)
 	ui.Row(c).Gap(10).Children(func() {
-		ui.Textf(c, "%d 新增", counts.Added).FontSize(11).TextColor(statusGreen)
-		ui.Textf(c, "%d 修改", counts.Modified).FontSize(11).TextColor(statusBlue)
-		ui.Textf(c, "%d 删除", counts.Deleted).FontSize(11).TextColor(c.Theme().TextMuted)
+		ui.Textf(c, "%d added", counts.Added).FontSize(11).TextColor(statusGreen)
+		ui.Textf(c, "%d modified", counts.Modified).FontSize(11).TextColor(statusBlue)
+		ui.Textf(c, "%d deleted", counts.Deleted).FontSize(11).TextColor(c.Theme().TextMuted)
 		if counts.Conflicted > 0 {
-			ui.Textf(c, "%d 冲突", counts.Conflicted).FontSize(11).TextColor(statusOrange)
+			ui.Textf(c, "%d conflicted", counts.Conflicted).FontSize(11).TextColor(statusOrange)
 		}
 	})
 }

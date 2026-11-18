@@ -97,37 +97,43 @@ func taskProgress(item backgroundTask) float64 {
 }
 func taskState(item backgroundTask) string {
 	if item.Cancelled {
-		return "已取消"
+		return "Canceled"
 	}
 	if item.Finished {
 		if item.Error != "" {
-			return "完成，有失败"
+			return "Completed with Errors"
 		}
-		return "已完成"
+		return "Completed"
 	}
 	if item.Total > 0 {
-		return fmt.Sprintf("%d / %d 步", item.Done, item.Total)
+		return fmt.Sprintf("%d / %d steps", item.Done, item.Total)
 	}
-	return "进行中"
+	return "In Progress"
 }
 func readTaskLabel(lane string) string {
-	labels := map[string]string{"history": "读取提交历史", "detail": "读取提交变更", "file": "读取文件比较", "review": "比较代码", "compare-commits": "比较提交集合", "working": "读取工作区", "working-file": "读取文件内容", "symbol": "查找定义", "commit-message-history": "读取提交说明"}
+	labels := map[string]string{"change-view": "Load Changes", "history": "Load Commit History", "detail": "Load Commit Changes", "file": "Load File Diff", "review": "Compare Code", "compare-commits": "Compare Commit Sets", "working": "Load Working Tree", "working-file": "Load File Content", "symbol": "Go to Definition", "commit-message-history": "Load Commit Messages"}
+	if strings.HasPrefix(lane, "preview:") {
+		return "Render Document Preview"
+	}
+	if strings.HasPrefix(lane, "editor:") {
+		return "Load Editor File"
+	}
 	if strings.HasPrefix(lane, "repository-files:") {
-		return "读取仓库文件"
+		return "Load Repository Files"
 	}
 	return labels[lane]
 }
 func inspectWithProgress(entries []Entry, report taskReporter, offset, total int) []Repository {
 	var repos []Repository
 	for i, entry := range entries {
-		report("读取仓库状态 · "+entry.Path, offset+i, total, nil)
+		report("Read repository status · "+entry.Path, offset+i, total, nil)
 		repo := inspect(entry)
 		repos = append(repos, repo)
 		var err error
 		if repo.Error != "" {
 			err = fmt.Errorf("%s", repo.Error)
 		}
-		report("读取仓库状态 · "+repo.Name, offset+i+1, total, err)
+		report("Read repository status · "+repo.Name, offset+i+1, total, err)
 	}
 	return repos
 }
@@ -147,7 +153,7 @@ func (a *client) backgroundTaskIndicator(c *ui.Context) {
 		if current != nil {
 			item := *current
 			ui.Text(c, item.Label+" · "+item.Detail).FontSize(10).SingleLine().Ellipsis("…").Grow(1).MinWidth(0).Tooltip(item.Label + "\n" + item.Detail)
-			ui.Progress(c, taskProgress(item)).Width(90).Height(5).Label("后台任务进度")
+			ui.Progress(c, taskProgress(item)).Width(90).Height(5).Label("Background Task Progress")
 			ui.Text(c, taskState(item)).FontSize(10).Shrink(0)
 		} else {
 			ui.Spacer(c)
@@ -166,7 +172,7 @@ func (a *client) backgroundTaskIndicator(c *ui.Context) {
 				ui.Text(c, taskState(last)).FontSize(10).TextColor(color)
 			}
 		}
-		ui.Button(c, fmt.Sprintf("任务 (%d)", running)).Label("后台任务").Height(21).FontSize(10).OnClick(func() { a.taskPanelOpen = true })
+		ui.Button(c, fmt.Sprintf("Tasks (%d)", running)).Label("Background Tasks").Height(21).FontSize(10).OnClick(func() { a.taskPanelOpen = true })
 	})
 }
 func (a *client) backgroundTasksPanel(c *ui.Context) {
@@ -175,10 +181,10 @@ func (a *client) backgroundTasksPanel(c *ui.Context) {
 	}
 	ui.Modal(c.Key("background-tasks"), &a.taskPanelOpen, func() {
 		ui.Column(c).Width(660).MaxHeight(550).Gap(8).Children(func() {
-			ui.Text(c, "后台任务").FontSize(16).Bold()
+			ui.Text(c, "Background Tasks").FontSize(16).Bold()
 			tasks := a.tasks.snapshot()
 			if len(tasks) == 0 {
-				ui.Text(c, "暂无后台任务").FontSize(12)
+				ui.Text(c, "No background tasks").FontSize(12)
 			}
 			ui.Scroll(c).MaxHeight(440).Gap(10).Children(func() {
 				for _, item := range tasks {
@@ -196,7 +202,7 @@ func (a *client) backgroundTasksPanel(c *ui.Context) {
 					})
 				}
 			})
-			ui.Button(c, "关闭").OnClick(func() { a.taskPanelOpen = false })
+			ui.Button(c, "Close").OnClick(func() { a.taskPanelOpen = false })
 		})
 	})
 }

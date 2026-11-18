@@ -42,7 +42,7 @@ func TestRepositoryPushAndWorkingState(t *testing.T) {
 	if r.Ahead != 1 || r.Status == "" || repositoryStateColor(r, ui.RGB(0, 0, 0)) != statusOrange {
 		t.Fatalf("dirty: %+v", r)
 	}
-	if tip := repositoryStateTooltip(r); !strings.Contains(tip, "未 Push：1") || !strings.Contains(tip, "未提交变更") {
+	if tip := repositoryStateTooltip(r); !strings.Contains(tip, "Unpushed: 1") || !strings.Contains(tip, "Uncommitted changes") {
 		t.Fatal(tip)
 	}
 	// Without an upstream, already published commits remain published.
@@ -112,18 +112,18 @@ func TestRepositoryBranchAndColoredWorkingTreeUI(t *testing.T) {
 	if !tester.HasText("src/feature") {
 		t.Fatal(tester.Texts())
 	}
-	for _, text := range []string{"3 文件", "1 新增", "1 修改", "1 删除", "Commit Message"} {
+	for _, text := range []string{"3 files", "1 added", "1 modified", "1 deleted", "Commit Message"} {
 		if !tester.HasText(text) {
 			t.Fatalf("missing summary: %s", text)
 		}
 	}
-	if err := tester.Click("折叠"); err != nil {
+	if err := tester.Click("Collapse"); err != nil {
 		t.Fatal(err)
 	}
 	if tester.HasText("added.go") {
 		t.Fatal("collapse all left file nodes visible")
 	}
-	if err := tester.Click("展开"); err != nil {
+	if err := tester.Click("Expand"); err != nil {
 		t.Fatal(err)
 	}
 	if !tester.HasText("added.go") {
@@ -135,24 +135,24 @@ func TestRepositoryBranchAndColoredWorkingTreeUI(t *testing.T) {
 			t.Fatal(name)
 		}
 	}
-	folder, _ := tester.Find("选择文件夹 sample/app/src/feature")
-	file, _ := tester.Find("选择文件 sample/app/src/feature/added.go")
-	if delta := file.X - folder.X; delta < 17 || delta > 19 {
+	folder, _ := tester.Find("Select directory sample/app/src/feature")
+	file, _ := tester.Find("Select file sample/app/src/feature/added.go")
+	if delta := file.X - folder.X; delta < 20 || delta > 22 {
 		t.Fatalf("unexpected tree indent: folder=%+v file=%+v", folder, file)
 	}
 	// Folder selection remains independent from expansion and selects descendants.
-	if err := tester.Click("选择文件夹 sample/app/src/feature"); err != nil {
+	if err := tester.Click("Select directory sample/app/src/feature"); err != nil {
 		t.Fatal(err)
 	}
 	if len(a.workingRequests("")) != 1 || len(a.workingRequests("")[0].Files) != 3 {
 		t.Fatal("folder selection lost descendants")
 	}
 	save("mygo-local-status.png")
-	doubleTreeContent(t, tester, "文件夹 src/feature")
+	doubleTreeContent(t, tester, "Directory src/feature")
 	if tester.HasText("added.go") {
 		t.Fatal("folder name did not collapse subtree")
 	}
-	doubleTreeContent(t, tester, "文件夹 src/feature")
+	doubleTreeContent(t, tester, "Directory src/feature")
 	tester.Frame()
 }
 

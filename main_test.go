@@ -10,7 +10,7 @@ import (
 )
 
 func testClient(repos []Repository) *client {
-	return &client{repos: repos, selected: map[string]bool{}, expanded: map[string]*bool{}, logIndex: -1, fileIndex: -1, workspaceSplit: 55, commitAnchor: -1, output: "就绪"}
+	return &client{repos: repos, selected: map[string]bool{}, expanded: map[string]*bool{}, logIndex: -1, fileIndex: -1, workspaceSplit: 55, commitAnchor: -1, output: "Ready"}
 }
 func TestNavigationTabsSelectionAndMenus(t *testing.T) {
 	a := testClient([]Repository{
@@ -23,10 +23,10 @@ func TestNavigationTabsSelectionAndMenus(t *testing.T) {
 			t.Fatalf("missing UI: %s", label)
 		}
 	}
-	if tester.HasText("变更文件") || tester.HasText("变更前") {
+	if tester.HasText("Changed Files") || tester.HasText("Before") {
 		t.Fatal("unselected views must remain hidden")
 	}
-	if tester.HasText("同名分支") || tester.HasText("分支层级") {
+	if tester.HasText("Group Same-Name Branches") || tester.HasText("Branch Hierarchy") {
 		t.Fatal("old mode switch remains")
 	}
 	if err := tester.Click("supplychain"); err != nil {
@@ -38,7 +38,7 @@ func TestNavigationTabsSelectionAndMenus(t *testing.T) {
 	if err := tester.RightClick("supplychain"); err != nil {
 		t.Fatal(err)
 	}
-	if !slices.Contains(tester.Menu(), "supplychain · 仅此仓库") {
+	if !slices.Contains(tester.Menu(), "supplychain · This repository") {
 		t.Fatal(tester.Menu())
 	}
 	tester.CloseMenu()
@@ -63,14 +63,14 @@ func TestNavigationTabsSelectionAndMenus(t *testing.T) {
 	if err := tester.RightClick("export  (2)"); err != nil {
 		t.Fatal(err)
 	}
-	if !slices.Contains(tester.Menu(), "feature/order/export · 全部 2 个仓库") {
+	if !slices.Contains(tester.Menu(), "feature/order/export · All 2 repositories") {
 		t.Fatal(tester.Menu())
 	}
 	tester.CloseMenu()
 	a.busy = true
 	tester.Frame()
 	tester.RightClick("export  (2)")
-	if err := tester.ChooseMenuItem("checkout · 切换到此分支"); err == nil {
+	if err := tester.ChooseMenuItem("Checkout Branch"); err == nil {
 		t.Fatal("busy operation must disable actions")
 	}
 	tester.CloseMenu()
@@ -91,7 +91,7 @@ func TestNavigationTabsSelectionAndMenus(t *testing.T) {
 	if err := tester.RightClick("Remote export  (1)"); err != nil {
 		t.Fatal(err)
 	}
-	if !slices.Contains(tester.Menu(), "origin/feature/order/export · 全部 1 个仓库") {
+	if !slices.Contains(tester.Menu(), "origin/feature/order/export · All 1 repositories") {
 		t.Fatal(tester.Menu())
 	}
 	tester.CloseMenu()
@@ -160,16 +160,16 @@ func TestControlShiftMultiSelectionUI(t *testing.T) {
 	a.readRunner = func(work func() func()) { work()() }
 	a.reloadHistory()
 	tester := ui.NewTester(a.view, 1560, 940)
-	if tester.HasText("变更文件") {
+	if tester.HasText("Changed Files") {
 		t.Fatal("file subview must be hidden with no selection")
 	}
 	if err := tester.Click("Last selected change"); err != nil {
 		t.Fatal(err)
 	}
-	if !tester.HasText("变更文件") || len(a.activeCommits) != 1 {
+	if !tester.HasText("Changed Files") || len(a.activeCommits) != 1 {
 		t.Fatal("selecting a commit must reveal Log file subview")
 	}
-	if a.selectedFile != "" || tester.HasText("变更前") {
+	if a.selectedFile != "" || tester.HasText("Before") {
 		t.Fatal("file area must remain blank until a file is selected")
 	}
 	if err := tester.ClickWith(ui.Ctrl, "First selected change"); err != nil {
@@ -200,10 +200,10 @@ func TestControlShiftMultiSelectionUI(t *testing.T) {
 	if len(a.activeCommits) != 3 || len(a.files) != 2 || a.selectedFile != "" {
 		t.Fatalf("Shift must select range and clear stale comparison: commits=%d files=%d selectedFile=%q anchor=%d index=%d", len(a.activeCommits), len(a.files), a.selectedFile, a.commitAnchor, a.logIndex)
 	}
-	if err := tester.Click("取消选择"); err != nil {
+	if err := tester.Click("Deselect All"); err != nil {
 		t.Fatal(err)
 	}
-	if tester.HasText("变更文件") || tester.HasText("变更前") || len(a.activeCommits) != 0 {
-		t.Fatal("clearing commit selection must hide dependent views")
+	if tester.HasText("Changed Files") || len(a.activeCommits) != 0 || len(a.editorTabs) == 0 {
+		t.Fatal("clearing commit selection must hide the Log subview and preserve editor tabs")
 	}
 }

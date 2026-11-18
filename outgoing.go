@@ -23,7 +23,7 @@ func requireUnpublished(path, hash string) error {
 		return err
 	}
 	if refs != "" {
-		return fmt.Errorf("提交已被远程跟踪引用包含，请 Fetch 后核对；不改写已发布提交")
+		return fmt.Errorf("Commit is reachable from a remote-tracking ref. Fetch to verify; published commits are not rewritten")
 	}
 	return nil
 }
@@ -56,7 +56,7 @@ func readOutgoing(ctx context.Context, repo Repository) Outgoing {
 	for i := 0; i+3 < len(fields); i += 4 {
 		stamp, err := strconv.ParseInt(fields[i+1], 10, 64)
 		if err != nil {
-			result.Error = "无法解析未 Push 提交"
+			result.Error = "Cannot parse unpushed commits"
 			return result
 		}
 		result.Commits = append(result.Commits, Commit{Repository: repo, Hash: strings.TrimSpace(fields[i]), Timestamp: stamp, Author: fields[i+2], Subject: fields[i+3]})
@@ -101,18 +101,18 @@ func pushOutgoing(target PushTarget, head string) (string, error) {
 	source := target.Source
 	currentHead, currentRef := currentPosition(source.Repository.Path)
 	if currentHead != head || currentRef != source.Ref || currentRef == "" {
-		return "", fmt.Errorf("HEAD 或分支已变化，或处于 detached HEAD；请刷新后重试")
+		return "", fmt.Errorf("HEAD or branch changed, or HEAD is detached. Refresh and retry")
 	}
 	remote := strings.TrimSpace(target.Remote)
 	dest := strings.TrimSpace(target.Destination)
 	if strings.HasPrefix(dest, "refs/") && !strings.HasPrefix(dest, "refs/heads/") {
-		return "", fmt.Errorf("目标必须是分支名或 refs/heads/ 引用")
+		return "", fmt.Errorf("Target must be a branch name or refs/heads/ ref")
 	}
 	if !strings.HasPrefix(dest, "refs/heads/") {
 		dest = "refs/heads/" + dest
 	}
 	if _, err := git(source.Repository.Path, "check-ref-format", dest); err != nil {
-		return "", fmt.Errorf("无效目标分支")
+		return "", fmt.Errorf("Invalid target branch")
 	}
 	remotes, err := git(source.Repository.Path, "remote")
 	if err != nil {
@@ -125,23 +125,23 @@ func pushOutgoing(target PushTarget, head string) (string, error) {
 		}
 	}
 	if !found {
-		return "", fmt.Errorf("未配置远程 %s，请设置 remote 后重试", remote)
+		return "", fmt.Errorf("Remote %s is not configured. Configure it and retry", remote)
 	}
 	if operationInProgress(source.Repository.Path) {
-		return "", fmt.Errorf("存在未完成的 Git 操作")
+		return "", fmt.Errorf("Git operation in progress")
 	}
 	out, err := git(source.Repository.Path, "push", "--porcelain", "--", remote, head+":"+dest)
 	if err != nil {
-		return out, fmt.Errorf("Push 失败；本地提交已保留：%w", err)
+		return out, fmt.Errorf("Push failed; local commits are preserved: %w", err)
 	}
 	// Confirm against the actual push endpoint, which may differ from fetch URL.
 	endpoint, err := git(source.Repository.Path, "remote", "get-url", "--push", remote)
 	if err != nil {
-		return out, fmt.Errorf("结果待确认：无法读取推送地址")
+		return out, fmt.Errorf("Unverified: cannot read push URL")
 	}
 	refs, err := git(source.Repository.Path, "ls-remote", "--refs", "--", endpoint, dest)
 	if err != nil || len(strings.Fields(refs)) < 2 || strings.Fields(refs)[0] != head {
-		return out, fmt.Errorf("结果待确认：无法确认远程分支指向本次提交，请核对后刷新")
+		return out, fmt.Errorf("Unverified: cannot confirm the remote branch points to this commit. Verify and refresh")
 	}
 	// Configure an upstream only for an exact conventional branch-to-branch push.
 	if source.Base == "" && dest == source.Ref {
@@ -149,14 +149,14 @@ func pushOutgoing(target PushTarget, head string) (string, error) {
 		configuredRemote, _ := git(source.Repository.Path, "config", "--get", "branch."+branch+".remote")
 		configuredMerge, _ := git(source.Repository.Path, "config", "--get", "branch."+branch+".merge")
 		if configuredRemote != "" || configuredMerge != "" {
-			return out + "\n已核对 Push 成功：" + head, nil
+			return out + "\nPush verified: " + head, nil
 		}
 		if _, err := git(source.Repository.Path, "config", "branch."+branch+".remote", remote); err != nil {
-			return out, fmt.Errorf("Push 已成功，但保存 upstream 失败：%w", err)
+			return out, fmt.Errorf("Push succeeded, but saving upstream failed: %w", err)
 		}
 		if _, err := git(source.Repository.Path, "config", "branch."+branch+".merge", dest); err != nil {
-			return out, fmt.Errorf("Push 已成功，但保存 upstream 失败：%w", err)
+			return out, fmt.Errorf("Push succeeded, but saving upstream failed: %w", err)
 		}
 	}
-	return out + "\n已核对 Push 成功：" + head + " → " + remote + "/" + strings.TrimPrefix(dest, "refs/heads/"), nil
+	return out + "\nPush verified: " + head + " → " + remote + "/" + strings.TrimPrefix(dest, "refs/heads/"), nil
 }

@@ -117,7 +117,7 @@ func readCommitContext(ctx context.Context, commit Commit) (CommitDetail, error)
 	d := CommitDetail{Commit: commit}
 	parents, err := gitContext(ctx, commit.Repository.Path, "rev-list", "--parents", "-n", "1", commit.Hash, "--")
 	if err != nil {
-		return d, fmt.Errorf("读取父提交：%s: %w", parents, err)
+		return d, fmt.Errorf("Read parent commit: %s: %w", parents, err)
 	}
 	fields := strings.Fields(parents)
 	if len(fields) > 1 {
@@ -131,7 +131,7 @@ func readCommitContext(ctx context.Context, commit Commit) (CommitDetail, error)
 	}
 	out, err := gitContext(ctx, commit.Repository.Path, args...)
 	if err != nil {
-		return d, fmt.Errorf("读取变更文件：%s: %w", out, err)
+		return d, fmt.Errorf("Read changed file: %s: %w", out, err)
 	}
 	tokens := strings.Split(out, "\x00")
 	for i := 0; i+1 < len(tokens) && tokens[i] != ""; {
@@ -139,7 +139,7 @@ func readCommitContext(ctx context.Context, commit Commit) (CommitDetail, error)
 		i += 2
 		if strings.HasPrefix(f.Status, "R") || strings.HasPrefix(f.Status, "C") {
 			if i >= len(tokens) {
-				return d, fmt.Errorf("变更文件格式不完整")
+				return d, fmt.Errorf("Incomplete changed-file record")
 			}
 			f.OldPath = f.Path
 			f.Path = tokens[i]
@@ -165,7 +165,25 @@ func readBlobContext(ctx context.Context, path, revision, file string) (string, 
 	if revision == "" || file == "" {
 		return "", "", nil
 	}
-	out, err := gitContext(ctx, path, "ls-tree", "-z", revision, "--", ":(literal)"+file)
+	var out string
+	var err error
+	if revision == ":" {
+		out, err = gitContext(ctx, path, "ls-files", "--stage", "-z", "--", ":(literal)"+file)
+		if err == nil && out != "" {
+			metadata, name, _ := strings.Cut(out, "\t")
+			fields := strings.Fields(metadata)
+			if len(fields) != 3 || fields[2] != "0" {
+				return "", "Unmerged index entry; resolve conflicts before comparison", nil
+			}
+			kind := "blob"
+			if fields[0] == "160000" {
+				kind = "commit"
+			}
+			out = fields[0] + " " + kind + " " + fields[1] + "\t" + name
+		}
+	} else {
+		out, err = gitContext(ctx, path, "ls-tree", "-z", revision, "--", ":(literal)"+file)
+	}
 	if err != nil {
 		return "", "", err
 	}
@@ -175,10 +193,10 @@ func readBlobContext(ctx context.Context, path, revision, file string) (string, 
 	metadata, _, _ := strings.Cut(out, "\t")
 	fields := strings.Fields(metadata)
 	if len(fields) != 3 {
-		return "", "", fmt.Errorf("无法读取文件对象")
+		return "", "", fmt.Errorf("Cannot read file object")
 	}
 	if fields[1] != "blob" {
-		return "", "子模块对象：" + fields[2], nil
+		return "", "Submodule object: " + fields[2], nil
 	}
 	sizeText, err := gitContext(ctx, path, "cat-file", "-s", fields[2])
 	if err != nil {
@@ -189,14 +207,14 @@ func readBlobContext(ctx context.Context, path, revision, file string) (string, 
 		return "", "", err
 	}
 	if size > comparisonBlobLimit(ctx) {
-		return "", fmt.Sprintf("文件超过 %d MiB，未加载文本", comparisonBlobLimit(ctx)/(1024*1024)), nil
+		return "", fmt.Sprintf("File exceeds %d MiB; text not loaded", comparisonBlobLimit(ctx)/(1024*1024)), nil
 	}
 	data, err := rawGitContext(ctx, path, "cat-file", "blob", fields[2])
 	if err != nil {
 		return "", "", err
 	}
 	if bytes.IndexByte(data, 0) >= 0 || !utf8.Valid(data) {
-		return "", "二进制或非 UTF-8 文件，无法进行文本比较", nil
+		return "", "Text comparison is unavailable for binary or non-UTF-8 files", nil
 	}
 	return string(data), "", nil
 }

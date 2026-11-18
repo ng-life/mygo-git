@@ -25,7 +25,7 @@ func TestCommitReconcilesErrorAfterSuccessfulRefUpdate(t *testing.T) {
 		}
 		return out, context.DeadlineExceeded
 	})
-	if err != nil || !strings.Contains(out, "已核对成功") || !strings.Contains(out, "deadline exceeded") {
+	if err != nil || !strings.Contains(out, "Commit verified") || !strings.Contains(out, "deadline exceeded") {
 		t.Fatalf("%s: %v", out, err)
 	}
 	if readWorkingTree(request.Tree.Repository).Head == request.Tree.Head {
@@ -44,7 +44,7 @@ func TestCommitUnexpectedMessageIsUncertain(t *testing.T) {
 		}
 		return out, errors.New("connection lost")
 	})
-	if !isUncertainCommit(err) || !strings.Contains(formatResults([]OperationResult{{Output: out, Err: err}}), "[结果待确认]") {
+	if !isUncertainCommit(err) || !strings.Contains(formatResults([]OperationResult{{Output: out, Err: err}}), "[Unverified]") {
 		t.Fatalf("%s: %v", out, err)
 	}
 }
@@ -53,7 +53,7 @@ func TestCommitRejectedHasVerifiedUnchangedHead(t *testing.T) {
 	writeCommit(t, path, "file.txt", "before\n")
 	writeWorkingFile(t, path, "file.txt", "after\n")
 	_, err := commitWorkingTreeWithCommand(requestFor(t, path, "file.txt"), "rejected", func(string, ...string) (string, error) { return "", errors.New("rejected") })
-	if err == nil || isUncertainCommit(err) || !strings.Contains(err.Error(), "HEAD 未变化") {
+	if err == nil || isUncertainCommit(err) || !strings.Contains(err.Error(), "unchanged HEAD") {
 		t.Fatal(err)
 	}
 }
@@ -182,7 +182,7 @@ func TestCommitMatchingMessageButWrongContentIsUncertain(t *testing.T) {
 		writeWorkingFile(t, path, "new.txt", "different")
 		return git(path, args...)
 	})
-	if !isUncertainCommit(err) || !strings.Contains(err.Error(), "文件内容") {
+	if !isUncertainCommit(err) || !strings.Contains(err.Error(), "content") {
 		t.Fatal(err)
 	}
 }

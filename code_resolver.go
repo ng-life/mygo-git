@@ -47,7 +47,7 @@ func languageGlobs(language string) []string {
 }
 func safeCodePath(root, file string) (string, error) {
 	if !validWorkingPath(file) {
-		return "", fmt.Errorf("无效文件路径")
+		return "", fmt.Errorf("Invalid file path")
 	}
 	full := filepath.Join(root, filepath.FromSlash(file))
 	real, err := filepath.EvalSymlinks(full)
@@ -60,7 +60,7 @@ func safeCodePath(root, file string) (string, error) {
 	}
 	rel, err := filepath.Rel(base, real)
 	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
-		return "", fmt.Errorf("文件位于仓库之外")
+		return "", fmt.Errorf("File is outside the repository")
 	}
 	return real, nil
 }
@@ -90,17 +90,17 @@ func readCodeSource(ctx context.Context, source CodeSource) (DiffDocument, error
 			return DiffDocument{}, err
 		}
 		if !info.Mode().IsRegular() {
-			return DiffDocument{}, fmt.Errorf("仅支持普通文本文件")
+			return DiffDocument{}, fmt.Errorf("Only regular text files are supported")
 		}
 		data, err := io.ReadAll(io.LimitReader(file, blobLimit+1))
 		if err != nil {
 			return DiffDocument{}, err
 		}
 		if len(data) > blobLimit {
-			return DiffDocument{}, fmt.Errorf("文件超过 1 MiB")
+			return DiffDocument{}, fmt.Errorf("File exceeds 1 MiB")
 		}
 		if bytes.IndexByte(data, 0) >= 0 || !utf8.Valid(data) {
-			return DiffDocument{}, fmt.Errorf("二进制文件")
+			return DiffDocument{}, fmt.Errorf("Binary file")
 		}
 		text = string(data)
 	}
@@ -114,7 +114,7 @@ func readCodeSource(ctx context.Context, source CodeSource) (DiffDocument, error
 func resolveCode(ctx context.Context, source CodeSource, document DiffDocument, ref CodeReference) (CodeResolution, error) {
 	result := CodeResolution{}
 	if document.Analysis == nil {
-		return result, fmt.Errorf("当前文件不支持语法分析")
+		return result, fmt.Errorf("Syntax analysis is unavailable for this file")
 	}
 	analysis := document.Analysis
 	for _, def := range analysis.localTargets(ref) {
@@ -124,7 +124,7 @@ func resolveCode(ctx context.Context, source CodeSource, document DiffDocument, 
 		return result, nil
 	}
 	if len(languageGlobs(analysis.Language)) == 0 {
-		return result, fmt.Errorf("当前语言暂不支持跨文件跳转")
+		return result, fmt.Errorf("Cross-file navigation is unavailable for this language")
 	}
 	searchRef := ref
 	if ref.Qualifier == "" {
@@ -152,7 +152,7 @@ func resolveCode(ctx context.Context, source CodeSource, document DiffDocument, 
 		targetSource.Path = file
 		candidate, err := readCodeSource(ctx, targetSource)
 		if err != nil {
-			result.Notice = "部分候选文件无法读取；结果可能不完整"
+			result.Notice = "Some candidate files could not be read; results may be incomplete"
 			continue
 		}
 		if candidate.Analysis == nil {
@@ -231,7 +231,7 @@ func candidateCodeFiles(ctx context.Context, source CodeSource, a *CodeAnalysis,
 	if a.Language == "Go" {
 		directory, ok := goCandidateDirectory(ctx, source, a, ref)
 		if !ok {
-			return nil, "外部依赖或未识别的 Go 模块路径不在仓库搜索范围内", nil
+			return nil, "External dependencies and unresolved Go module paths are outside the repository search scope", nil
 		}
 		goDirectory = directory
 	}
@@ -255,7 +255,11 @@ func candidateCodeFiles(ctx context.Context, source CodeSource, a *CodeAnalysis,
 		}
 		root = temp
 		defer os.RemoveAll(temp)
-		list, err := rawGitContext(ctx, source.Repository, "ls-tree", "-r", "--name-only", "-z", source.Revision)
+		args := []string{"ls-tree", "-r", "--name-only", "-z", source.Revision}
+		if source.Revision == ":" {
+			args = []string{"ls-files", "--cached", "-z"}
+		}
+		list, err := rawGitContext(ctx, source.Repository, args...)
 		if err != nil {
 			return nil, "", err
 		}
@@ -268,7 +272,7 @@ func candidateCodeFiles(ctx context.Context, source CodeSource, a *CodeAnalysis,
 				continue
 			}
 			if copied >= navigationFileLimit {
-				notice = "历史快照仅搜索前 250 个相关文件；结果可能不完整"
+				notice = "Historical search is limited to the first 250 relevant files; results may be incomplete"
 				break
 			}
 			content, warning, err := readBlobContext(ctx, source.Repository, source.Revision, file)
@@ -309,9 +313,9 @@ func candidateCodeFiles(ctx context.Context, source CodeSource, a *CodeAnalysis,
 		var exit *exec.ExitError
 		if !errors.As(err, &exit) || exit.ExitCode() != 1 {
 			if errors.Is(err, exec.ErrNotFound) {
-				return nil, "", fmt.Errorf("跨文件跳转需要安装 ripgrep（rg）")
+				return nil, "", fmt.Errorf("Cross-file navigation requires ripgrep (rg)")
 			}
-			return nil, "", fmt.Errorf("ripgrep 搜索失败：%s: %w", stderr.String(), err)
+			return nil, "", fmt.Errorf("ripgrep search failed: %s: %w", stderr.String(), err)
 		}
 	}
 	var files []string
@@ -325,7 +329,7 @@ func candidateCodeFiles(ctx context.Context, source CodeSource, a *CodeAnalysis,
 	sort.Strings(files)
 	if len(files) > navigationMatchLimit {
 		files = files[:navigationMatchLimit]
-		notice = "仅分析前 60 个匹配文件；结果可能不完整"
+		notice = "Only the first 60 matching files were analyzed; results may be incomplete"
 	}
 	return files, notice, nil
 }

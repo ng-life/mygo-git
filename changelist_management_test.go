@@ -163,14 +163,14 @@ func TestChangelistManagementUI(t *testing.T) {
 	if err := tester.Click("Changes"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tester.Click("新建 Changelist"); err != nil {
+	if err := tester.Click("New Changelist"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tester.Click("Changelist 名称"); err != nil {
+	if err := tester.Click("Changelist name"); err != nil {
 		t.Fatal(err)
 	}
 	tester.Type("Task B")
-	if err := tester.Click("确认新建 Changelist"); err != nil {
+	if err := tester.Click("Confirm New Changelist"); err != nil {
 		t.Fatal(err)
 	}
 	if a.changelists.list(a.changelists.Active).Name != "Task B" {
@@ -179,7 +179,7 @@ func TestChangelistManagementUI(t *testing.T) {
 	if err := tester.RightClick("order.txt"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tester.ChooseMenuItem("移动到 Changelist：Task B"); err != nil {
+	if err := tester.ChooseMenuItem("Move to Changelist:Task B"); err != nil {
 		t.Fatal(err)
 	}
 	if len(a.changelistTrees(a.changelists.Active)) != 1 {
@@ -221,10 +221,10 @@ func TestChangelistManagementUI(t *testing.T) {
 	if err := tester.RightClick("Changelist Task B"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tester.ChooseMenuItem("删除 Changelist…"); err != nil {
+	if err := tester.ChooseMenuItem("Delete Changelist…"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tester.Click("确认删除 Changelist"); err != nil {
+	if err := tester.Click("Confirm Delete Changelist"); err != nil {
 		t.Fatal(err)
 	}
 	if a.changelists.Active != defaultChangelist || len(a.changelists.Lists) != 1 {

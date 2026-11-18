@@ -57,9 +57,8 @@ func TestTagCreationHistoryAndProtectedDeletion(t *testing.T) {
 	}
 	a.tab = 2
 	tester := ui.NewTester(a.view, 1560, 940)
-	if err := tester.Click("Review…"); err != nil {
-		t.Fatal(err)
-	}
+	chooseApplicationAction(t, a, "review")
+	tester.Frame()
 	if a.review.Target != "refs/heads/release/v1" {
 		t.Fatal("Review used an ambiguous branch/tag name", a.review.Target)
 	}
@@ -141,7 +140,7 @@ func TestLogsCombinedNavigationAndTagDialogUI(t *testing.T) {
 	if err := tester.Click("Changes"); err != nil {
 		t.Fatal(err)
 	}
-	if tester.HasText("搜索分支或 Tag") {
+	if tester.HasText("Search Branches or Tags") {
 		t.Fatal("Logs navigation in Changes")
 	}
 	if err := tester.Click("Logs"); err != nil {
@@ -161,7 +160,7 @@ func TestLogsCombinedNavigationAndTagDialogUI(t *testing.T) {
 	if err := tester.RightClick("Tag v1  (2)"); err != nil {
 		t.Fatal(err)
 	}
-	if !slices.Contains(tester.Menu(), "删除本地 Tag…") {
+	if !slices.Contains(tester.Menu(), "Delete Local Tag…") {
 		t.Fatal(tester.Menu())
 	}
 	tester.CloseMenu()
@@ -175,17 +174,17 @@ func TestLogsCombinedNavigationAndTagDialogUI(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if err := tester.Click("新建 Tag…"); err != nil {
+	if err := tester.Click("New Tag…"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tester.Click("Tag 名称"); err != nil {
+	if err := tester.Click("Tag name"); err != nil {
 		t.Fatal(err)
 	}
 	tester.Type("release/v2")
-	if err := tester.Click("Tag 仓库 api"); err != nil {
+	if err := tester.Click("Tag repository api"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tester.Click("确认新建 Tag"); err != nil {
+	if err := tester.Click("Confirm New Tag"); err != nil {
 		t.Fatal(err)
 	}
 	if len(a.repos[0].Tags) != 2 || len(a.repos[1].Tags) != 1 {
@@ -193,10 +192,10 @@ func TestLogsCombinedNavigationAndTagDialogUI(t *testing.T) {
 	}
 	a.openTagDialog("delete", "release/v1", a.repos)
 	tester.Frame()
-	if !tester.HasText("保留远程 Tag") {
+	if !tester.HasText("Remote tags are preserved") {
 		t.Fatal("delete scope not explained")
 	}
-	if err := tester.Click("确认删除本地 Tag"); err != nil {
+	if err := tester.Click("Confirm Delete Local Tag"); err != nil {
 		t.Fatal(err)
 	}
 	if len(referenceTargets(a.repos, "release/v1", "tags")) != 0 || a.groupTags {

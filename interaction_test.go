@@ -49,7 +49,7 @@ func TestDiffSelectionCopyAndCtrlClickInRealWorkspace(t *testing.T) {
 			if got := tester.Clipboard(); got != " target()\n _ = target" {
 				t.Fatalf("%s copy=%q", mode, got)
 			}
-			word, ok := tester.Find("跳转 main.go:4:2 target")
+			word, ok := tester.Find("Go to main.go:4:2 target")
 			if !ok {
 				t.Fatal("missing symbol")
 			}
@@ -73,25 +73,22 @@ func TestDiffSelectionCopyAndCtrlClickInRealWorkspace(t *testing.T) {
 					file.Close()
 				}
 			}
-			if err := tester.ClickWith(ui.Ctrl, "跳转 main.go:4:2 target"); err != nil {
+			if err := tester.ClickWith(primaryShortcutModifier(), "Go to main.go:4:2 target"); err != nil {
 				t.Fatal(err)
 			}
-			if !a.codeNavigation.Preview || a.codeNavigation.Target.Definition.Line != 2 {
-				t.Fatal("Ctrl+click in workspace failed", a.codeNavigation)
-			}
-			if err := tester.Click("关闭"); err != nil {
-				t.Fatal(err)
+			if a.codeNavigation.Open || a.activeEditor() == nil || a.activeEditor().Caret == nil || a.activeEditor().Caret.Line != 2 {
+				t.Fatal("Primary-modifier click in workspace failed", a.codeNavigation)
 			}
 			// An ordinary secondary click must retain the text Copy context menu.
-			if err := tester.RightClick("跳转 main.go:4:2 target"); err != nil {
+			if err := tester.RightClick("Go to main.go:4:2 target"); err != nil {
 				t.Fatal(err)
 			}
 			if a.codeNavigation.Open || len(tester.Menu()) == 0 {
 				t.Fatal("ordinary right-click did not open the copy menu")
 			}
 			tester.CloseMenu()
-			if !isDefinitionPress(ui.InputEvent{Kind: ui.InputPointerDown, Button: 1, Mods: ui.Ctrl}) {
-				t.Fatal("Control-secondary-click must be a definition gesture")
+			if isDefinitionPress(ui.InputEvent{Kind: ui.InputPointerDown, Button: 1, Mods: primaryShortcutModifier()}) {
+				t.Fatal("secondary click must not navigate")
 			}
 
 		})
@@ -103,7 +100,7 @@ func TestResizableSidebarAndSingleLineRepositoryName(t *testing.T) {
 	a.repos[0].Name = name
 	a.workingTrees[0].Repository.Name = name
 	tester := ui.NewTester(a.view, 1560, 940)
-	label := "仓库名 " + name
+	label := "Repository name " + name
 	narrow, ok := tester.Find(label)
 	if !ok {
 		t.Fatal("missing repository name")

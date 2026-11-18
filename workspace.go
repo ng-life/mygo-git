@@ -49,26 +49,25 @@ func (a *client) toolbar(c *ui.Context) {
 		ui.Text(c, "MyGo Git").FontSize(12).Bold()
 		ui.Text(c, "/  Git").FontSize(12).TextColor(c.Theme().TextMuted)
 		ui.Spacer(c)
-		ui.Button(c, "快捷键").OnClick(func() { a.shortcutHelpOpen = true })
-		ui.Button(c.Key("settings"), "设置").Disabled(a.busy).OnClick(a.openScanSettings)
-		ui.Button(c.Key("refresh"), "刷新全部").Disabled(a.busy).OnClick(a.refresh)
-		ui.Button(c.Key("review-entry"), "Review…").Disabled(len(a.repos) == 0 || a.tab == 2 && len(a.refSelection) > 2).OnClick(func() {
-			if a.tab == 2 && len(a.refSelection) == 2 {
-				a.openReferenceComparison("HEAD", true)
-				return
-			}
-			repos := a.visible()
-			if selected := a.targets(); len(selected) > 0 {
-				repos = selected
-			}
-			target := a.branch
-			if target != "" && !a.groupTags {
-				target = fullBranchRef(target, a.groupRemote)
-			}
-			a.openReviewDialog(repos, target)
-		})
-		ui.Button(c.Key("results"), "操作结果").OnClick(func() { a.showOutput = !a.showOutput })
+
 	})
+}
+
+// openToolbarReview preserves the current selection when opening Review from the menu.
+func (a *client) openToolbarReview() {
+	if a.tab == 2 && len(a.refSelection) == 2 {
+		a.openReferenceComparison("HEAD", true)
+		return
+	}
+	repos := a.visible()
+	if selected := a.targets(); len(selected) > 0 {
+		repos = selected
+	}
+	target := a.branch
+	if target != "" && !a.groupTags {
+		target = fullBranchRef(target, a.groupRemote)
+	}
+	a.openReviewDialog(repos, target)
 }
 
 // Only visible rows are built; text layout is prepared by the background reader.
@@ -77,10 +76,17 @@ func comparisonPane(c *ui.Context, title string, document DiffDocument, changed 
 	ui.Column(c).Grow(1).MinWidth(0).Gap(4).Children(func() {
 		ui.Text(c, title).Bold().FontSize(12).Padding(6)
 		if len(document.Lines) == 0 {
-			ui.Text(c, "（空）").TextColor(t.TextMuted)
+			ui.Text(c, "(empty)").TextColor(t.TextMuted)
 			return
 		}
-		ui.List(c.Key("diff-lines"), nil, len(document.Lines)).Grow(1).Selectable().RowWidth(document.Width).Rows(func(item ui.ListRow) {
+		ui.List(c.Key("diff-lines"), func() *ui.ListState {
+			if len(navigation) > 0 && navigation[0].Client != nil {
+				if tab := navigation[0].Client.activeEditor(); tab != nil && tab.Kind == "file" {
+					return &tab.FileList
+				}
+			}
+			return nil
+		}(), len(document.Lines)).Grow(1).Selectable().RowWidth(document.Width).Rows(func(item ui.ListRow) {
 			i := item.Index
 			row := ui.Row(item.Context).Height(20).Gap(10).Padding(1, 6)
 			if changed[i+1] {
@@ -106,58 +112,8 @@ func comparisonPane(c *ui.Context, title string, document DiffDocument, changed 
 	})
 }
 
-func (a *client) comparisonBlock(c *ui.Context, part CommitComparison) {
-	change := part.Change
-	commit := change.Detail.Commit
-	ui.Column(c.Key(commit.Key() + "\x00" + change.File.Path)).Fill().Padding(0).Gap(4).Children(func() {
-		afterLabel := reviewAfterLabel(commit.Hash)
-		if a.review.Open && a.review.Request.Reverse {
-			afterLabel = shortHash(part.Comparison.AfterSource.Revision)
-		}
-		ui.Text(c, commit.Repository.Name+" · "+afterLabel+" · "+change.File.Label()).FontSize(12).SingleLine().Ellipsis("…").Padding(5, 8).FillWidth().Background(ideaToolbar).Tooltip(change.File.Label())
-		ui.Text(c, commit.Subject).FontSize(12).TextColor(c.Theme().TextMuted)
-		if part.Error != "" {
-			ui.Text(c, part.Error)
-			return
-		}
-		if part.Comparison.Notice != "" {
-			ui.Text(c, part.Comparison.Notice)
-			return
-		}
-		beforeRef := shortHash(change.Detail.Parent)
-		if beforeRef == "" {
-			beforeRef = "空树"
-		}
-		afterRef := reviewAfterLabel(commit.Hash)
-		if a.review.Open && a.review.Request.Reverse {
-			beforeRef = "Worktree"
-			afterRef = shortHash(part.Comparison.AfterSource.Revision)
-		}
-		reviewComparison(c, part.Comparison, "变更前 · "+beforeRef, "变更后 · "+afterRef, a)
-	})
-}
-func (a *client) comparisonPanel(c *ui.Context) {
-	if a.selectedFile == "" {
-		return
-	}
-	if a.comparisonLoading {
-		ui.Text(c, "正在读取文件内容…").Padding(12)
-		return
-	}
-	ui.Column(c).Fill().Gap(4).Children(func() {
-		a.reviewFileNavigation(c)
-		if len(a.comparisons) == 1 {
-			a.comparisonBlock(c, a.comparisons[0])
-			return
-		}
-		ui.Scroll(c).Fill().Gap(10).Children(func() {
-			for _, part := range a.comparisons {
-				ui.Column(c.Key(part.Change.Detail.Commit.Key())).Height(300).Shrink(0).Children(func() { a.comparisonBlock(c, part) })
-			}
-		})
-	})
-}
 func (a *client) view(c *ui.Context) {
+	a.syncApplicationMenu()
 	c.SetTheme(ideaTheme)
 	a.registerShortcuts(c)
 	ui.Column(c).Fill().AlignItems(ui.Stretch).Background(c.Theme().Background).Children(func() {
@@ -178,19 +134,7 @@ func (a *client) view(c *ui.Context) {
 		ui.Split(c.Key("navigation-width"), width, func() { a.navigation(c) }, func() {
 			ui.Column(c).Grow(1).MinWidth(0).Children(func() {
 				ui.SplitVerticalPercent(c.Key("workspace-split"), &a.workspaceSplit, func() {
-					if a.review.Open {
-						a.comparisonPanel(c)
-					} else if a.tab == 0 && a.workingFileKey != "" {
-						a.repositoryFilePanel(c)
-					} else if a.tab == 1 {
-						if a.workingFileKey != "" {
-							a.workingComparisonPanel(c)
-						} else {
-							a.comparisonPanel(c)
-						}
-					} else {
-						a.comparisonPanel(c)
-					}
+					a.editorPanel(c)
 				}, func() {
 					if a.review.Open {
 						a.reviewPanel(c)
@@ -212,9 +156,9 @@ func (a *client) view(c *ui.Context) {
 		a.changelistManagementPanel(c)
 		a.commitMessageHistoryPanel(c)
 		a.referenceManagementPanel(c)
-		status := "就绪"
+		status := "Ready"
 		if a.busy {
-			status = "正在执行 Git 操作…"
+			status = "Running Git operation…"
 		}
 		ui.Row(c).Height(23).Shrink(0).Padding(0, 6).Gap(6).Background(ideaToolbar).AlignItems(ui.Center).Children(func() {
 			ui.Text(c, status+" · "+a.output).SingleLine().Ellipsis("…").Grow(1).MinWidth(0).FontSize(11).TextColor(c.Theme().TextMuted).Tooltip(a.output)

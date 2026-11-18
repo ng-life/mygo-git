@@ -118,7 +118,7 @@ func TestRootBinaryAndLargeFileComparison(t *testing.T) {
 		t.Fatal(err)
 	}
 	comparison, err = readComparison(d, d.Files[0])
-	if err != nil || !strings.Contains(comparison.Notice, "超过") {
+	if err != nil || !strings.Contains(comparison.Notice, "exceeds") {
 		t.Fatal("large file must show limit")
 	}
 }

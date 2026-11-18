@@ -62,7 +62,7 @@ func inspect(e Entry) Repository {
 	r := Repository{Path: e.Path, Name: e.Name}
 	root, err := git(e.Path, "rev-parse", "--show-toplevel")
 	if err != nil {
-		r.Error = "仓库不可用：" + root
+		r.Error = "Repository unavailable: " + root
 		return r
 	}
 	if r.Name == "" {
@@ -89,7 +89,7 @@ func inspect(e Entry) Repository {
 	}
 	tags, tagErr := git(root, "for-each-ref", "--format=%(refname:strip=2)%00%(objectname)", "refs/tags/")
 	if tagErr != nil {
-		r.Error = "读取 Tags：" + tagErr.Error()
+		r.Error = "Read tags: " + tagErr.Error()
 	} else {
 		r.TagObjects = map[string]string{}
 		for _, line := range strings.Split(tags, "\n") {
@@ -134,7 +134,7 @@ func discover(roots []string) ([]Entry, error) {
 		root = canonicalRoot
 		info, statErr := os.Stat(root)
 		if statErr != nil || !info.IsDir() {
-			problems = append(problems, root+": 不是可读取的文件夹")
+			problems = append(problems, root+": Not a readable directory")
 			continue
 		}
 		err = filepath.WalkDir(root, func(path string, d fs.DirEntry, walkErr error) error {
@@ -178,7 +178,7 @@ func discover(roots []string) ([]Entry, error) {
 	}
 	sort.Slice(entries, func(i, j int) bool { return entries[i].Path < entries[j].Path })
 	if len(problems) > 0 {
-		return entries, fmt.Errorf("部分目录未扫描：%s", strings.Join(problems, "\n"))
+		return entries, fmt.Errorf("Some directories were not scanned: %s", strings.Join(problems, "\n"))
 	}
 	return entries, nil
 }

@@ -50,7 +50,7 @@ func TestUnifiedRepositoryTreeInteraction(t *testing.T) {
 	if *a.browserOpen("repository:" + path) {
 		t.Fatal("double click did not collapse")
 	}
-	if err := tester.Click("展开仓库 app"); err != nil {
+	if err := tester.Click("Expand repository app"); err != nil {
 		t.Fatal(err)
 	}
 	if !*a.browserOpen("repository:" + path) {
@@ -68,7 +68,7 @@ func TestUnifiedChangesTreeInteraction(t *testing.T) {
 	a.workingTrees[0].Files[0].Path = "src/deep/order.txt"
 	tester := ui.NewTester(a.view, 1560, 940)
 	// Root content selects history without changing submission checkboxes.
-	doubleTreeContent(t, tester, "仓库名 supplychain")
+	doubleTreeContent(t, tester, "Repository name supplychain")
 	if !a.workingCollapsed[a.repos[0].Path] {
 		t.Fatal("Changes root did not collapse")
 	}
@@ -76,24 +76,24 @@ func TestUnifiedChangesTreeInteraction(t *testing.T) {
 		t.Fatal("double-clicking root changed commit checkboxes")
 	}
 
-	if err := tester.Click("展开或折叠 supplychain"); err != nil {
+	if err := tester.Click("Expand or collapse supplychain"); err != nil {
 		t.Fatal(err)
 	}
 	if a.workingCollapsed[a.repos[0].Path] {
 		t.Fatal("Changes arrow did not expand")
 	}
 	key := workingFileKey(a.repos[0].Path, "src/deep")
-	if err := tester.Click("文件夹 src/deep"); err != nil {
+	if err := tester.Click("Directory src/deep"); err != nil {
 		t.Fatal(err)
 	}
 	if a.workingCollapsed[key] {
 		t.Fatal("single folder click changed expansion")
 	}
-	doubleTreeContent(t, tester, "文件夹 src/deep")
+	doubleTreeContent(t, tester, "Directory src/deep")
 	if !a.workingCollapsed[key] {
 		t.Fatal("Changes folder double click failed")
 	}
-	if err := tester.Click("展开或折叠 src/deep"); err != nil {
+	if err := tester.Click("Expand or collapse src/deep"); err != nil {
 		t.Fatal(err)
 	}
 	if a.workingCollapsed[key] {
@@ -160,17 +160,17 @@ func TestUnifiedReviewTreeInteraction(t *testing.T) {
 	a.readRunner = func(w func() func()) { w()() }
 	a.beginReview(ReviewRequest{Kind: "workspace", Base: "HEAD", Repositories: []Repository{repo}})
 	tester := ui.NewTester(a.view, 1560, 940)
-	if err := tester.Click("Review 仓库 app"); err != nil {
+	if err := tester.Click("Review repository app"); err != nil {
 		t.Fatal(err)
 	}
 	if !*a.referenceOpen("review-repository:" + path) {
 		t.Fatal("single Review root click collapsed tree")
 	}
-	doubleTreeContent(t, tester, "Review 仓库 app")
+	doubleTreeContent(t, tester, "Review repository app")
 	if *a.referenceOpen("review-repository:" + path) {
 		t.Fatal("Review root double click failed")
 	}
-	clickNativeTreeArrow(t, tester, "Review 仓库 app", 0)
+	clickNativeTreeArrow(t, tester, "Review repository app", 0)
 	if !*a.referenceOpen("review-repository:" + path) {
 		t.Fatal("Review root arrow failed")
 	}
@@ -189,7 +189,7 @@ func TestUnifiedReviewTreeInteraction(t *testing.T) {
 	if !*a.expanded[folderKey] {
 		t.Fatal("Review folder arrow failed")
 	}
-	if err := tester.Click("Review 文件 src/deep/file.txt"); err != nil {
+	if err := tester.Click("Review file src/deep/file.txt"); err != nil {
 		t.Fatal(err)
 	}
 	if a.selectedFile == "" {

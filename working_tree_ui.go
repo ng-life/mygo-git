@@ -104,14 +104,14 @@ func (a *client) workingDisclosure(c *ui.Context, key, label string) bool {
 	if a.workingCollapsed[key] {
 		arrow = "▸"
 	}
-	ui.ButtonBase(c.Key("disclosure")).Width(18).Height(22).Label("展开或折叠 " + label).OnClick(func() { a.workingCollapsed[key] = !a.workingCollapsed[key] }).Children(func() { ui.Text(c, arrow) })
+	ui.ButtonBase(c.Key("disclosure")).Width(18).Height(22).Label("Expand or collapse " + label).OnClick(func() { a.workingCollapsed[key] = !a.workingCollapsed[key] }).Children(func() { ui.Text(c, arrow) })
 	return !a.workingCollapsed[key]
 }
 func (a *client) workingNodes(c *ui.Context, tree WorkingTree, nodes []*workingNode, depth int) {
 	for _, node := range nodes {
 		ui.Column(c.Key(node.Path)).Children(func() {
 			open := true
-			line := ui.Row(c).Padding(0, 0, 0, float32(depth*18)).Gap(4).Height(22).AlignItems(ui.Center)
+			line := ui.Row(c).Padding(0, 0, 0, float32(depth*21)).Gap(4).Height(22).AlignItems(ui.Center)
 			if node.File != nil && a.workingFileKey == workingFileKey(tree.Repository.Path, node.File.Path) {
 				line.Background(ideaSelection)
 			}
@@ -120,15 +120,15 @@ func (a *client) workingNodes(c *ui.Context, tree WorkingTree, nodes []*workingN
 				disabled := a.busy || a.workingLoading || tree.Error != ""
 				if node.File == nil {
 					open = a.workingDisclosure(c, workingFileKey(a.workingTreeScope(tree), node.Path), node.Path)
-					ui.CheckboxState(c.Key("folder-selected"), &state, "").Label("选择文件夹 " + tree.Repository.Name + "/" + node.Path).Disabled(disabled).Tooltip(node.Path).OnClick(func() { a.toggleWorkingFiles(tree.Repository.Path, node.Files, state == ui.CheckOn) })
-					treeContentAction(ui.ButtonBase(c.Key("folder-name")).Grow(1).MinWidth(0).Justify(ui.Start).Label("文件夹 "+node.Path).Tooltip(node.Path), nil, func() {
+					ui.CheckboxState(c.Key("folder-selected"), &state, "").Label("Select directory " + tree.Repository.Name + "/" + node.Path).Disabled(disabled).Tooltip(node.Path).OnClick(func() { a.toggleWorkingFiles(tree.Repository.Path, node.Files, state == ui.CheckOn) })
+					treeContentAction(ui.ButtonBase(c.Key("folder-name")).Grow(1).MinWidth(0).Justify(ui.Start).Label("Directory "+node.Path).Tooltip(node.Path), nil, func() {
 						key := workingFileKey(a.workingTreeScope(tree), node.Path)
 						a.workingCollapsed[key] = !a.workingCollapsed[key]
 					}).ContextMenu(func(menu *ui.Menu) { a.changelistMoveMenu(menu, tree, node.Files) }).Children(func() {
 						ui.Row(c).Grow(1).MinWidth(0).Gap(5).AlignItems(ui.Center).Children(func() {
-							ui.Icon(c, workingFolderIcon).Width(14).Height(14).Shrink(0).TextColor(c.Theme().TextMuted)
+							folderTypeIcon(c)
 							ui.Text(c, node.Name).FontSize(12).SingleLine().Ellipsis("…").MinWidth(0).Shrink(1)
-							ui.Textf(c, "%d 文件", len(node.Files)).FontSize(11).Shrink(0).TextColor(c.Theme().TextMuted)
+							ui.Textf(c, "%d files", len(node.Files)).FontSize(11).Shrink(0).TextColor(c.Theme().TextMuted)
 							ui.Spacer(c)
 						})
 					})
@@ -138,19 +138,19 @@ func (a *client) workingNodes(c *ui.Context, tree WorkingTree, nodes []*workingN
 				file := *node.File
 				color := workingStatusColor(file, c.Theme().TextMuted)
 				key := workingFileKey(tree.Repository.Path, file.Path)
-				ui.CheckboxState(c.Key("file-selected"), &state, "").Label("选择文件 " + tree.Repository.Name + "/" + file.Path).Disabled(disabled || file.Conflicted()).OnClick(func() { a.toggleWorkingFiles(tree.Repository.Path, []WorkingFile{file}, state == ui.CheckOn) })
-				ui.Icon(c, workingFileIcon).Width(14).Height(14).Shrink(0).TextColor(color).Tooltip(file.Status)
+				ui.CheckboxState(c.Key("file-selected"), &state, "").Label("Select file " + tree.Repository.Name + "/" + file.Path).Disabled(disabled || file.Conflicted()).OnClick(func() { a.toggleWorkingFiles(tree.Repository.Path, []WorkingFile{file}, state == ui.CheckOn) })
+				fileTypeIcon(c, file.Path)
 				label := path.Base(file.Path)
 				if file.OldPath != "" {
 					label = path.Base(file.OldPath) + " → " + label
 				}
-				row := ui.ButtonBase(c.Key("working-file")).Grow(1).MinWidth(0).Justify(ui.Start).Label(file.Label()).Tooltip(file.Label() + "\nGit 状态：" + file.Status)
+				row := ui.ButtonBase(c.Key("working-file")).Grow(1).MinWidth(0).Justify(ui.Start).Label(file.Label()).Tooltip(file.Label() + "\nGit status: " + file.Status)
 				if a.workingFileKey == key {
 					row.Background(ideaSelection)
 				}
 				row.OnClick(func() { a.selectWorkingFile(tree, file) }).ContextMenu(func(menu *ui.Menu) {
 					a.changelistMoveMenu(menu, tree, []WorkingFile{file})
-					if menu.Item("Revert 此文件…").Disabled(a.busy || file.Conflicted()).Chosen() {
+					if menu.Item("Revert This File…").Disabled(a.busy || file.Conflicted()).Chosen() {
 						a.openChangesRevert([]CommitRequest{{Tree: tree, Files: []WorkingFile{file}}})
 					}
 				}).Children(func() {

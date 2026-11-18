@@ -4,4 +4,4 @@ package main
 
 import "os/exec"
 
-func configureGitCancellation(cmd *exec.Cmd) {}
+func configureGitCancellation(cmd *exec.Cmd) func() { return func() {} }

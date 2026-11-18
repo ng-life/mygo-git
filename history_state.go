@@ -172,15 +172,21 @@ func (a *client) selectCommits(commits []Commit) {
 	})
 }
 func (a *client) selectFile(file MergedFile) {
+	editorID := a.openCommitEditor(file, "").ID
 	a.clearWorkingComparison()
 	a.clearComparison()
 	a.selectedFile = file.Key()
 	a.comparisonLoading = true
 	gen := a.fileGeneration
-	a.startRead("file", func(ctx context.Context) func() {
+	a.startRead("editor:"+editorID, func(ctx context.Context) func() {
 		comparisons := readMergedComparisonContext(ctx, file)
 		return func() {
-			if gen != a.fileGeneration {
+			if editor := a.editorByID(editorID); editor != nil {
+				editor.Loading = false
+				editor.setParts(comparisons)
+				a.refreshEditorPreview(editorID)
+			}
+			if gen != a.fileGeneration || a.editorActive != editorID {
 				return
 			}
 			a.comparisonLoading = false
@@ -231,6 +237,8 @@ func (a *client) clickCommit(index int, mods ui.Modifiers) {
 	a.selectCommits(selected)
 }
 func (a *client) switchTab(tab int) {
+	a.saveEditorContext()
+	defer a.restoreEditorContext()
 	if a.review.Open {
 		a.closeReview()
 	}

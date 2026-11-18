@@ -42,7 +42,7 @@ type ReviewSession struct {
 
 func resolveReviewRef(ctx context.Context, repo Repository, ref string) (string, error) {
 	if strings.TrimSpace(ref) == "" {
-		return "", fmt.Errorf("引用不能为空")
+		return "", fmt.Errorf("Ref is required")
 	}
 	return gitContext(ctx, repo.Path, "rev-parse", "--verify", "--end-of-options", ref+"^{commit}")
 }
@@ -63,7 +63,7 @@ func reviewChangedFiles(ctx context.Context, repo Repository, base, target strin
 		i += 2
 		if strings.HasPrefix(f.Status, "R") || strings.HasPrefix(f.Status, "C") {
 			if i >= len(tokens) {
-				return nil, fmt.Errorf("不完整的重命名记录")
+				return nil, fmt.Errorf("Incomplete rename record")
 			}
 			f.OldPath = f.Path
 			f.Path = tokens[i]
@@ -82,7 +82,7 @@ func readReview(ctx context.Context, request ReviewRequest) (items []ReviewItem,
 	if request.Kind == "commits" && !request.Net {
 		_, files, problem = readSelectedCommitsContext(ctx, request.Commits)
 		for _, c := range request.Commits {
-			summaries = append(summaries, c.Repository.Name+": "+c.Hash+"（与第一父提交比较）")
+			summaries = append(summaries, c.Repository.Name+": "+c.Hash+"(compared with first parent)")
 		}
 	} else {
 		for _, repo := range request.Repositories {
@@ -116,7 +116,7 @@ func readReview(ctx context.Context, request ReviewRequest) (items []ReviewItem,
 					_, e1 := gitContext(ctx, repo.Path, "merge-base", "--is-ancestor", oldest, commit.Hash)
 					_, e2 := gitContext(ctx, repo.Path, "merge-base", "--is-ancestor", commit.Hash, newest)
 					if e1 != nil || e2 != nil {
-						err = fmt.Errorf("所选提交不在同一祖先链，请使用逐提交模式")
+						err = fmt.Errorf("Selected commits are not on the same ancestor chain. Use Per Commit mode")
 						break
 					}
 				}
@@ -147,7 +147,7 @@ func readReview(ctx context.Context, request ReviewRequest) (items []ReviewItem,
 					bases, err = gitContext(ctx, repo.Path, "merge-base", "--all", base, target)
 					if err == nil {
 						if len(strings.Fields(bases)) != 1 {
-							err = fmt.Errorf("存在多个共同祖先，请使用直接比较")
+							err = fmt.Errorf("Multiple merge bases found. Use direct comparison")
 						} else {
 							base = strings.TrimSpace(bases)
 						}
@@ -160,11 +160,11 @@ func readReview(ctx context.Context, request ReviewRequest) (items []ReviewItem,
 			}
 			label := target
 			if label == "" {
-				label = "工作区（含未跟踪文件）"
+				label = "Worktree (including untracked files)"
 			}
 			baselineLabel := request.Base + " [" + base + "]"
 			if request.Kind == "merge-base" {
-				baselineLabel = request.Base + " [" + resolvedBase + "] · 共同祖先 [" + base + "]"
+				baselineLabel = request.Base + " [" + resolvedBase + "] · Merge bases [" + base + "]"
 			}
 			if request.Reverse {
 				summaries = append(summaries, repo.Name+": Worktree → "+request.Base+" ["+base+"]")
@@ -184,9 +184,9 @@ func readReview(ctx context.Context, request ReviewRequest) (items []ReviewItem,
 				files = append(files, repoFiles...)
 				count, e := gitContext(ctx, repo.Path, "rev-list", "--count", target, "^"+base, "--")
 				if e != nil {
-					errors = append(errors, repo.Name+": 无法核对提交范围："+e.Error())
+					errors = append(errors, repo.Name+": Cannot verify commit range: "+e.Error())
 				} else if count != fmt.Sprint(len(commits)) {
-					errors = append(errors, repo.Name+": 范围共 "+count+" 个提交，逐提交模式仅展示最近 200 个；请缩小范围，或使用净差异查看完整结果")
+					errors = append(errors, repo.Name+": Range contains "+count+" commits; Per Commit mode shows the latest 200. Narrow the range or use Net Diff for the complete result")
 				}
 				continue
 			}

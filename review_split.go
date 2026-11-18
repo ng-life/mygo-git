@@ -79,7 +79,7 @@ func reviewSideBySide(c *ui.Context, f FileComparison, s *reviewState, beforeTit
 						return
 					}
 					if row.Kind == 'f' {
-						ui.Button(item.Context, fmt.Sprintf("展开 %d 行未修改内容", row.OldEnd-row.OldLine)).Height(25).OnClick(func() { s.expandReview(f, *row) })
+						ui.Button(item.Context, fmt.Sprintf("Expand %d Unchanged Lines", row.OldEnd-row.OldLine)).Height(25).OnClick(func() { s.expandReview(f, *row) })
 						return
 					}
 					if row.Kind == 'h' {

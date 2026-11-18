@@ -53,7 +53,7 @@ func TestIDEAStyleLogFilterSelectionAndFileTree(t *testing.T) {
 	if err := tester.Click(a.commits[0].Subject); err != nil {
 		t.Fatal(err)
 	}
-	if !tester.HasText("变更文件 · 1 个提交") {
+	if !tester.HasText("Changed Files · 1 commits") {
 		t.Fatal("file tree missing")
 	}
 	if err := tester.Click("src/main/java/app/OrderService.java"); err != nil {
@@ -72,7 +72,7 @@ func TestIDEAStyleLogFilterSelectionAndFileTree(t *testing.T) {
 		}
 		f.Close()
 	}
-	if err := tester.Click("搜索提交"); err != nil {
+	if err := tester.Click("Search Commits"); err != nil {
 		t.Fatal(err)
 	}
 	tester.Type("SCM-N31137")

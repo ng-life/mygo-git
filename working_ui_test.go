@@ -40,7 +40,7 @@ func TestLocalWorkingTreeSingleAndSharedCommitUI(t *testing.T) {
 	if a.workingComparison.Before != "old order\n" || a.workingComparison.After != "new order\n" {
 		t.Fatal("working file comparison not loaded")
 	}
-	for _, label := range []string{"选择仓库 supplychain", "选择仓库 ordercenter"} {
+	for _, label := range []string{"Select repository supplychain", "Select repository ordercenter"} {
 		if err := tester.Click(label); err != nil {
 			t.Fatal(err)
 		}
@@ -95,10 +95,10 @@ func TestLocalWorkingTreeSingleAndSharedCommitUI(t *testing.T) {
 	// Now commit two repositories in a single click with one shared message.
 	writeWorkingFile(t, first, "order.txt", "batch order\n")
 	writeWorkingFile(t, second, "stock.txt", "batch stock\n")
-	if err := tester.Click("刷新变更"); err != nil {
+	if err := tester.Click("Refresh Changes"); err != nil {
 		t.Fatal(err)
 	}
-	for _, label := range []string{"选择仓库 supplychain", "选择仓库 ordercenter"} {
+	for _, label := range []string{"Select repository supplychain", "Select repository ordercenter"} {
 		if err := tester.Click(label); err != nil {
 			t.Fatal(err)
 		}
@@ -176,8 +176,8 @@ func TestStaleWorkingTreeResponseIsIgnored(t *testing.T) {
 	fileResponse := queue[2]()
 	a.switchTab(2)
 	fileResponse()
-	if a.workingFileKey != "" || a.workingComparison.After != "" {
-		t.Fatal("stale working file response appeared after switching tabs")
+	if a.activeEditor() == nil || a.activeEditor().Loading || a.activeEditor().Comparison.After != "first\n" {
+		t.Fatal("independent file tab did not finish loading after switching sidebar tabs")
 	}
 }
 
@@ -200,17 +200,17 @@ func TestChangesSidebarHidesCleanRepositoriesAndBranches(t *testing.T) {
 	a.tab = 1
 	a.workingTrees = []WorkingTree{{Repository: dirty, Files: []WorkingFile{{Status: " M", Path: "note.txt"}}}, {Repository: clean}}
 	tester := ui.NewTester(a.view, 1560, 940)
-	if _, ok := tester.Find("选择仓库 clean-repository"); ok {
+	if _, ok := tester.Find("Select repository clean-repository"); ok {
 		t.Fatal("clean repository must not appear in working changes")
 	}
-	if _, ok := tester.Find("选择仓库 dirty-repository"); !ok {
+	if _, ok := tester.Find("Select repository dirty-repository"); !ok {
 		t.Fatal("changed repository is missing")
 	}
 	upper, ok := tester.Find("Changelists")
 	if !ok {
 		t.Fatal("working tree header missing")
 	}
-	if tester.HasText("本地分支") {
+	if tester.HasText("LocalBranch") {
 		t.Fatal("Changes must not contain branch navigation")
 	}
 	if upper.X >= 400 {
@@ -218,10 +218,10 @@ func TestChangesSidebarHidesCleanRepositoriesAndBranches(t *testing.T) {
 	}
 	a.workingTrees[0].Files = nil
 	tester.Frame()
-	if _, ok := tester.Find("选择仓库 dirty-repository"); ok {
+	if _, ok := tester.Find("Select repository dirty-repository"); ok {
 		t.Fatal("repository must disappear after its changes are cleared")
 	}
-	if !tester.HasText("暂无工作区变更") {
+	if !tester.HasText("No working tree changes") {
 		t.Fatal("clean workspace must show empty state")
 	}
 	tester.SetSize(1100, 760)

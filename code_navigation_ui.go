@@ -8,28 +8,39 @@ import (
 )
 
 type CodeNavigation struct {
-	Client *client
-	Source CodeSource
+	Client  *client
+	Source  CodeSource
+	Version string
 }
 type navigationState struct {
-	Open, Loading bool
-	Message       string
-	Targets       []CodeTarget
-	Target        CodeTarget
-	Document      DiffDocument
-	List          ui.ListState
-	Preview       bool
-	Generation    uint64
+	Open, Loading           bool
+	Message                 string
+	Targets                 []CodeTarget
+	Target                  CodeTarget
+	Document                DiffDocument
+	OriginID, OriginVersion string
+	OriginSource            CodeSource
+	OriginDocument          DiffDocument
+	List                    ui.ListState
+	Choice                  int
+	FocusChoice             bool
+	Generation              uint64
 }
 
 func (a *client) navigateSymbol(source CodeSource, document DiffDocument, ref CodeReference) {
+	a.navigateSymbolAt(source, document, ref, "")
+}
+func (a *client) navigateSymbolAt(source CodeSource, document DiffDocument, ref CodeReference, version string) {
 	a.cancelRead("symbol")
 	a.codeNavigation.Generation++
 	gen := a.codeNavigation.Generation
 	a.codeNavigation.Open = true
 	a.codeNavigation.Loading = true
-	a.codeNavigation.Preview = false
-	a.codeNavigation.Message = "正在查找 " + ref.Name + " 的定义…"
+	a.codeNavigation.OriginID = a.editorActive
+	a.codeNavigation.OriginSource = source
+	a.codeNavigation.OriginDocument = document
+	a.codeNavigation.OriginVersion = version
+	a.codeNavigation.Message = "Searching for " + ref.Name + " definitions…"
 	a.codeNavigation.Targets = nil
 	a.startRead("symbol", func(ctx context.Context) func() {
 		resolution, err := resolveCode(ctx, source, document, ref)
@@ -37,17 +48,24 @@ func (a *client) navigateSymbol(source CodeSource, document DiffDocument, ref Co
 			if gen != a.codeNavigation.Generation || !a.codeNavigation.Open {
 				return
 			}
+			if a.editorActive != a.codeNavigation.OriginID {
+				a.closeCodeNavigation()
+				return
+			}
 			a.codeNavigation.Loading = false
 			a.codeNavigation.Targets = resolution.Targets
 			a.codeNavigation.Message = resolution.Notice
+			a.codeNavigation.Choice = 0
+			a.codeNavigation.List = ui.ListState{Selected: &a.codeNavigation.Choice}
+			a.codeNavigation.FocusChoice = true
 			if err != nil {
 				a.codeNavigation.Message = err.Error()
 				return
 			}
 			if len(resolution.Targets) == 0 {
-				a.codeNavigation.Message = "未找到符合语义的定义"
+				a.codeNavigation.Message = "No matching definition found"
 				if resolution.Notice != "" {
-					a.codeNavigation.Message += "；" + resolution.Notice
+					a.codeNavigation.Message += "; " + resolution.Notice
 				}
 				return
 			}
@@ -63,15 +81,22 @@ func (a *client) navigateSymbol(source CodeSource, document DiffDocument, ref Co
 	})
 }
 func (a *client) showCodeTarget(target CodeTarget, document DiffDocument) {
-
 	a.codeNavigation.Target = target
 	a.codeNavigation.Document = document
+	origin := a.editorByID(a.codeNavigation.OriginID)
+	same := target.Source == a.codeNavigation.OriginSource && origin != nil && a.editorActive == origin.ID
+	a.codeNavigation.Open = false
 	a.codeNavigation.Loading = false
-	a.codeNavigation.Preview = true
-	a.codeNavigation.List = ui.ListState{}
-	a.codeNavigation.List.ScrollTo(max(0, target.Definition.Line-1), ui.Center)
+	if same && a.locateEditorDefinition(origin, target, document, a.codeNavigation.OriginVersion) {
+		return
+	}
+	a.openDefinitionEditor(target, document)
 }
 func (a *client) openCodeTarget(target CodeTarget) {
+	if target.Source == a.codeNavigation.OriginSource {
+		a.showCodeTarget(target, a.codeNavigation.OriginDocument)
+		return
+	}
 	a.codeNavigation.Generation++
 	gen := a.codeNavigation.Generation
 	a.codeNavigation.Loading = true
@@ -81,13 +106,17 @@ func (a *client) openCodeTarget(target CodeTarget) {
 			if gen != a.codeNavigation.Generation || !a.codeNavigation.Open {
 				return
 			}
+			if a.editorActive != a.codeNavigation.OriginID {
+				a.closeCodeNavigation()
+				return
+			}
 			a.codeNavigation.Loading = false
 			if err != nil {
 				a.codeNavigation.Message = err.Error()
 				return
 			}
 			if document.Analysis == nil {
-				a.codeNavigation.Message = "目标文件无法进行语法分析"
+				a.codeNavigation.Message = "Cannot analyze syntax in the target file"
 				return
 			}
 			var matches []CodeDefinition
@@ -106,7 +135,7 @@ func (a *client) openCodeTarget(target CodeTarget) {
 			}
 			if !found {
 				if len(matches) != 1 {
-					a.codeNavigation.Message = "目标定义已变化，请重新发起跳转"
+					a.codeNavigation.Message = "Target definition changed. Retry navigation"
 					return
 				}
 				target.Definition = matches[0]
@@ -122,56 +151,42 @@ func (a *client) closeCodeNavigation() {
 }
 func (a *client) codeNavigationPanel(c *ui.Context) {
 	if !a.codeNavigation.Open {
-		a.cancelRead("symbol")
+		return
+	}
+	if a.codeNavigation.Loading {
+		c.OnWindowShortcut(0, ui.KeyEscape, a.closeCodeNavigation)
 		return
 	}
 	ui.Modal(c.Key("code-navigation"), &a.codeNavigation.Open, func() {
-		ui.Column(c).Width(1000).Height(600).Padding(12).Gap(8).Children(func() {
-			ui.Row(c).AlignItems(ui.Center).Gap(8).Children(func() {
-				ui.Text(c, "语法跳转").FontSize(15).Bold()
+		ui.Column(c).Width(680).Height(360).Padding(12).Gap(8).Children(func() {
+			ui.Row(c).Children(func() {
+				ui.Text(c, "Go to Definition").FontSize(15).Bold()
 				ui.Spacer(c)
-				ui.Button(c, "关闭").OnClick(a.closeCodeNavigation)
+				ui.Button(c, "Close").OnClick(a.closeCodeNavigation)
 			})
 			if a.codeNavigation.Message != "" {
-				ui.Text(c, a.codeNavigation.Message).FontSize(12).SingleLine()
+				ui.Text(c, a.codeNavigation.Message).FontSize(12)
 			}
-			if a.codeNavigation.Loading {
-				ui.Text(c, "正在解析定义…")
-				return
-			}
-			if !a.codeNavigation.Preview {
-				if len(a.codeNavigation.Targets) > 1 {
-					ui.Textf(c, "找到 %d 个目标，请选择", len(a.codeNavigation.Targets))
-				}
-				ui.List(c, nil, len(a.codeNavigation.Targets)).Grow(1).Rows(func(row ui.ListRow) {
-					target := a.codeNavigation.Targets[row.Index]
-					label := fmt.Sprintf("%s · %s · %s:%d", target.Definition.Name, target.Definition.Container, target.Source.Path, target.Definition.Line)
-					ui.Button(row.Context, label).Label(label).OnClick(func() { a.openCodeTarget(target) })
-				})
-				return
-			}
-			target := a.codeNavigation.Target
-			revision := target.Source.Revision
-			if revision == "" {
-				revision = "工作区"
-			} else {
-				revision = shortHash(revision)
-			}
-			ui.Textf(c, "%s:%d · %s · %s", target.Source.Path, target.Definition.Line, target.Definition.Name, revision).FontSize(12)
-			if len(a.codeNavigation.Targets) > 1 {
-				ui.Button(c, "返回目标列表").OnClick(func() { a.codeNavigation.Preview = false })
-			}
-			document := a.codeNavigation.Document
-			ui.List(c.Key(target.Source.Repository+"\x00"+target.Source.Path+"\x00"+revision), &a.codeNavigation.List, len(document.Lines)).Grow(1).Selectable().RowWidth(document.Width).Rows(func(row ui.ListRow) {
-				line := ui.Row(row.Context).Height(20).Gap(10).Padding(1, 6)
-				if row.Index+1 == target.Definition.Line {
-					line.Background(c.Theme().SurfaceHover)
-				}
-				line.Children(func() {
-					ui.Textf(c, "%4d", row.Index+1).Unselectable().Width(42).Font("monospace").FontSize(11)
-					codeLineWithNavigation(c, document, row.Index, c.Theme().Text, &CodeNavigation{Client: a, Source: target.Source})
-				})
+			ui.Textf(c, "%d targets found. Select a target", len(a.codeNavigation.Targets)).FontSize(12)
+			list := ui.List(c.Key("targets"), &a.codeNavigation.List, len(a.codeNavigation.Targets)).Label("Definition Targets").Grow(1).ItemKey(func(i int) any {
+				t := a.codeNavigation.Targets[i]
+				return fmt.Sprintf("%v:%d:%d", t.Source, t.Definition.Line, t.Definition.Column)
 			})
+
+			list.Rows(func(row ui.ListRow) {
+				target := a.codeNavigation.Targets[row.Index]
+				label := fmt.Sprintf("%s · %s · %s:%d:%d", target.Definition.Name, target.Definition.Container, target.Source.Path, target.Definition.Line, target.Definition.Column)
+				ui.Button(row.Context, label).Label(label).Tooltip(target.Source.Repository + "\n" + target.Source.Revision).OnClick(func() { a.openCodeTarget(target) })
+			}).OnSubmit(func() {
+				index := a.codeNavigation.Choice
+				if index >= 0 && index < len(a.codeNavigation.Targets) {
+					a.openCodeTarget(a.codeNavigation.Targets[index])
+				}
+			})
+
+			if a.codeNavigation.FocusChoice {
+				a.codeNavigation.FocusChoice = !a.codeNavigation.List.Focus(c)
+			}
 		})
 	})
 }

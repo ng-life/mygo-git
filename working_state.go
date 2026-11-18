@@ -15,6 +15,7 @@ func (a *client) clearWorkingComparison() {
 }
 func (a *client) reloadWorkingTrees() { a.reloadWorkingTreesFor(nil) }
 func (a *client) reloadWorkingTreesFor(affected []Repository) {
+	a.reloadChangeView()
 	a.workingGeneration++
 	a.cancelRead("working")
 	if a.tab != 1 {
@@ -116,6 +117,11 @@ func (a *client) reloadWorkingTreesFor(affected []Repository) {
 	})
 }
 func (a *client) selectWorkingFile(tree WorkingTree, file WorkingFile) {
+	a.selectWorkingFileView(tree, file, a.tab == 0)
+}
+func (a *client) selectWorkingFileView(tree WorkingTree, file WorkingFile, fileView bool) {
+	editor := a.openWorkingEditor(tree, file, fileView)
+	editorID := editor.ID
 	if a.review.Open {
 		a.closeReview()
 	}
@@ -128,13 +134,21 @@ func (a *client) selectWorkingFile(tree WorkingTree, file WorkingFile) {
 	gen := a.workingFileGeneration
 	snapshot := tree
 	// The repository browser shows current contents, independent of HEAD blob limits or encoding.
-	if a.tab == 0 {
+	if fileView {
 		snapshot.Head = ""
 	}
-	a.startRead("working-file", func(ctx context.Context) func() {
+	a.startRead("editor:"+editorID, func(ctx context.Context) func() {
 		comparison, err := readWorkingComparisonContext(ctx, snapshot, file)
 		return func() {
-			if gen != a.workingFileGeneration {
+			if editor := a.editorByID(editorID); editor != nil {
+				editor.Loading = false
+				editor.setComparison(comparison)
+				a.refreshEditorPreview(editorID)
+				if err != nil {
+					editor.Error = err.Error()
+				}
+			}
+			if gen != a.workingFileGeneration || a.editorActive != editorID {
 				return
 			}
 			a.workingComparisonLoading = false

@@ -118,7 +118,7 @@ func TestDeleteBranchMenuConfirmationAndRefresh(t *testing.T) {
 	}
 	found := false
 	for _, label := range tester.Menu() {
-		if label == "删除本地分支…" {
+		if label == "Delete Local Branch…" {
 			found = true
 		}
 	}
@@ -129,13 +129,13 @@ func TestDeleteBranchMenuConfirmationAndRefresh(t *testing.T) {
 	a.requestBranchDeletion("cleanup", false, a.repos)
 	tester.Frame()
 	mustGit(t, repo, "show-ref", "--verify", "refs/heads/cleanup")
-	if err := tester.Click("取消"); err != nil {
+	if err := tester.Click("Cancel"); err != nil {
 		t.Fatal(err)
 	}
 	mustGit(t, repo, "show-ref", "--verify", "refs/heads/cleanup")
 	a.requestBranchDeletion("cleanup", false, a.repos)
 	tester.Frame()
-	if err := tester.Click("确认删除本地分支"); err != nil {
+	if err := tester.Click("Confirm Delete Local Branch"); err != nil {
 		t.Fatal(err)
 	}
 	tester.Frame()
@@ -143,7 +143,7 @@ func TestDeleteBranchMenuConfirmationAndRefresh(t *testing.T) {
 	if len(branchTargets(a.repos, "cleanup", false)) != 0 || tester.HasText("cleanup  (1)") {
 		t.Fatal("deleted branch remains in navigation")
 	}
-	if !strings.Contains(a.output, "成功") {
+	if !strings.Contains(a.output, "Succeeded") {
 		t.Fatal(a.output)
 	}
 }
@@ -177,7 +177,7 @@ func TestRemoteBranchDeleteMenuConfirmationAndRefresh(t *testing.T) {
 	}
 	found := false
 	for _, label := range tester.Menu() {
-		if label == "删除远程分支…" {
+		if label == "Delete Remote Branch…" {
 			found = true
 		}
 	}
@@ -187,7 +187,7 @@ func TestRemoteBranchDeleteMenuConfirmationAndRefresh(t *testing.T) {
 	tester.CloseMenu()
 	a.requestBranchDeletion("origin/feature/cleanup", true, a.repos)
 	tester.Frame()
-	if !tester.HasText("本地分支保留") || !tester.HasText(repo) {
+	if !tester.HasText("preserving local branches") || !tester.HasText(repo) {
 		t.Fatal("confirmation scope missing", tester.Texts())
 	}
 	if output := os.Getenv("MYGO_DELETE_SCREENSHOT"); output != "" {
@@ -200,7 +200,7 @@ func TestRemoteBranchDeleteMenuConfirmationAndRefresh(t *testing.T) {
 		}
 		file.Close()
 	}
-	if err := tester.Click("确认删除远程分支"); err != nil {
+	if err := tester.Click("Confirm Delete Remote Branch"); err != nil {
 		t.Fatal(err)
 	}
 	if len(branchTargets(a.repos, "origin/feature/cleanup", true)) != 0 {
@@ -209,4 +209,25 @@ func TestRemoteBranchDeleteMenuConfirmationAndRefresh(t *testing.T) {
 	mustGit(t, repo, "show-ref", "--verify", "refs/heads/feature/cleanup")
 	tester.Frame()
 	tester.Frame()
+}
+
+func TestCurrentLocalBranchProtection(t *testing.T) {
+	targets := []Repository{{Path: "/one", Branch: "main"}, {Path: "/two", Branch: "feature/review"}}
+	if !currentLocalBranch("main", targets) || currentLocalBranch("other", targets) || currentLocalBranch("", targets) {
+		t.Fatal("grouped current branch detection failed")
+	}
+	a := testClient(targets)
+	a.requestBranchDeletion("main", false, targets)
+	if a.branchDeletion.Open {
+		t.Fatal("current branch deletion dialog opened")
+	}
+	path := testRepo(t)
+	writeCommit(t, path, "note.txt", "content\n")
+	branch := mustGit(t, path, "branch", "--show-current")
+	if _, err := deleteBranch(path, branch, false); err == nil {
+		t.Fatal("current branch deletion was accepted")
+	}
+	if got := mustGit(t, path, "branch", "--show-current"); got != branch {
+		t.Fatal("current branch changed", got)
+	}
 }
